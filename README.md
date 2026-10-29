@@ -1,6 +1,6 @@
 # Penumbra
 
-A Figma plugin for object shadows that behave like light. Set where the shadow starts, how far it reaches, how soft it gets, how its copies are spaced and how strength and color run from the object outwards; Penumbra writes the drop shadows. Stack several shadows on one layer, say a tight contact shadow under a wide ambient one. Select the layer again any time and the plugin picks the settings back up.
+A Figma plugin for realistic, layered drop shadows: object shadows that behave like light. Set where the shadow starts, how far it reaches, how soft it gets, how its copies are spaced and how strength and color run from the object outwards; Penumbra writes the drop shadows. Stack several shadows on one layer, say a tight contact shadow under a wide ambient one. Select the layer again any time and the plugin picks the settings back up.
 
 ## Controls
 

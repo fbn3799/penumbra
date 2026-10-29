@@ -30,8 +30,8 @@ Figma desktop → **Plugins → Manage plugins…** (or Development → Manage p
 
 | Field | Value |
 |---|---|
-| Name | Penumbra |
-| Tagline | Layered object shadows that behave like light, and stay editable. |
+| Name | Penumbra – Realistic, Layered Drop Shadows |
+| Tagline | Smooth, soft and long shadows with real elevation and color fade, editable anytime. |
 | Description | below |
 | Category | Design tools (closest subcategory on offer) |
 | Icon | `assets/icon.png` (128 × 128) |
@@ -44,12 +44,22 @@ Figma desktop → **Plugins → Manage plugins…** (or Development → Manage p
 | Publisher | Fabian Schneider |
 | Version notes | First release. |
 
-Tags: `shadow`, `drop shadow`, `box shadow`, `elevation`, `depth`, `effects`, `soft shadow`, `layered shadow`, `realistic`, `light`, `card`, `ui`.
+Tags, in this order (Figma's tutorial allows twelve, a help mirror says five, so the first five carry the weight): `shadow`, `drop shadow`, `realistic shadow`, `smooth shadow`, `layered shadow`, `soft shadow`, `long shadow`, `elevation`, `box shadow`, `depth`, `effects`, `light`.
+
+### Being found for "shadow"
+
+Community search ranks on the **name** first and reads the **tagline** too. Checked on 2026-10-29: every top plugin for "shadow" has the word in its name, and plugins with a few hundred users rank on the strength of their tagline alone ("Shadow Pro" is second for "realistic shadow" because its tagline says "realistic"). Plain "Penumbra" would match nothing, hence the name and tagline above:
+
+- the name carries **shadows**, **drop shadows**, **realistic** and **layered**;
+- the tagline carries **smooth**, **soft**, **long**, **elevation** and **color**;
+- the description's first lines repeat them in sentences, and the tags cover the rest.
+
+`manifest.json` has the same name, so the publish form starts with it. Keep both if you rename. After publishing, search "shadow" filtered to Plugins and sorted by Recent to see it listed; relevance rank grows with users and likes.
 
 ### Description
 
 ```
-Penumbra builds object shadows the way light makes them: a stack of soft copies that grows wider and fainter with distance. And it stays editable. Select the layer again, or click "Edit shadow" in the sidebar, and every setting comes back.
+Realistic drop shadows for Figma, built the way light makes them: a stack of soft copies that grows wider and fainter with distance. Smooth, soft, long or colored, on cards, buttons, icons and images. And every shadow stays editable. Select the layer again, or click "Edit shadow" in the sidebar, and every setting comes back.
 
 • Light: elevation (the gap before the shadow starts), distance, softness and direction.
 • Start and end: the color and opacity next to the object and at the far end. Penumbra solves each copy's alpha so the overlaps add up to what you set.
