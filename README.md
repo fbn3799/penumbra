@@ -111,3 +111,7 @@ npm run figma-check  # bundles test/figma-check.ts for a real Figma file (see be
 - `src/code.ts`: the plugin entry (selection, messages, undo, nodechange sync).
 - `src/ui.ts` + `src/ui.html`: the panel. `build.mjs` inlines the bundled script into `dist/ui.html`.
 - `test/figma-check.ts` runs `src/nodes.ts` inside a Figma file through the Figma MCP's `use_figma`, and returns the structure it built plus a screenshot. Run it in a scratch file; it adds a board to the current page.
+
+## License
+
+[MIT](LICENSE)

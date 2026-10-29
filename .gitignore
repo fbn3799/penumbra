@@ -2,3 +2,5 @@ node_modules/
 dist/
 .test/
 .DS_Store
+.brain.yml
+CLAUDE.local.md

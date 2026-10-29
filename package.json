@@ -3,6 +3,7 @@
   "version": "0.3.0",
   "private": true,
   "description": "Figma plugin: physically-minded, layered object shadows you can re-edit any time.",
+  "license": "MIT",
   "scripts": {
     "build": "node build.mjs",
     "watch": "node build.mjs --watch",
