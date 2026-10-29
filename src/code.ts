@@ -1,80 +1,21 @@
 import type { PluginMessage, UiMessage } from './messages';
-import { computeLayers, hexToRgb, sanitize, type ShadowParams } from './shadow';
+import { clearShadow, lastWriteAt, mergeBlocker, readShadow, rematchSelection, selected, writeShadow } from './nodes';
+import { sanitize, type ShadowParams } from './shadow';
 
-// Shared (not private) plugin data, so shadows stay editable when the dev plugin's id
-// changes on publish.
-const NAMESPACE = 'penumbra';
-const KEY = 'shadow';
 const LAST_USED = 'last-used';
 
-type ShadowNode = SceneNode & BlendMixin;
-
-figma.showUI(__html__, { width: 300, height: 610, themeColors: true });
+figma.showUI(__html__, { width: 300, height: 700, themeColors: true });
 
 function post(message: PluginMessage) {
   figma.ui.postMessage(message);
 }
 
-function canHaveEffects(node: SceneNode): node is ShadowNode {
-  return 'effects' in node;
-}
 
-function selected(): ShadowNode[] {
-  return figma.currentPage.selection.filter(canHaveEffects);
-}
-
-function readShadow(node: ShadowNode): ShadowParams | null {
-  const raw = node.getSharedPluginData(NAMESPACE, KEY);
-  if (!raw) return null;
-  try {
-    return sanitize(JSON.parse(raw));
-  } catch {
-    return null;
+function report(notes: Set<string>, unstored: number) {
+  for (const note of notes) figma.notify(note);
+  if (unstored) {
+    figma.notify(`Shadow added, but ${unstored} layer${unstored > 1 ? 's' : ''} inside an instance can't keep its settings. Edit the main component to keep it editable.`);
   }
-}
-
-function toEffects(params: ShadowParams): DropShadowEffect[] {
-  const { r, g, b } = hexToRgb(params.color);
-  return computeLayers(params).map(
-    (layer): DropShadowEffect => ({
-      type: 'DROP_SHADOW',
-      color: { r, g, b, a: layer.alpha },
-      offset: { x: layer.x, y: layer.y },
-      radius: layer.blur,
-      spread: 0,
-      visible: true,
-      blendMode: params.blendMode,
-      showShadowBehindNode: false,
-    }),
-  );
-}
-
-// Our own writes fire nodechange too; ignore those so a drag doesn't echo back into the UI.
-let lastWrite = 0;
-
-/** Penumbra owns a node's drop shadows; inner shadows, blurs and the rest are kept. Returns
- *  false when the settings couldn't be stored (layers inside instances refuse plugin data). */
-function writeShadow(node: ShadowNode, params: ShadowParams): boolean {
-  lastWrite = Date.now();
-  node.effects = [...toEffects(params), ...node.effects.filter((e) => e.type !== 'DROP_SHADOW')];
-  try {
-    node.setSharedPluginData(NAMESPACE, KEY, JSON.stringify(params));
-  } catch {
-    return false;
-  }
-  try {
-    node.setRelaunchData({ edit: 'Adjust elevation, light and color' });
-  } catch {
-    // The sidebar button is a convenience; the stored settings are what keep it editable.
-  }
-  return true;
-}
-
-function clearShadow(node: ShadowNode) {
-  lastWrite = Date.now();
-  node.effects = node.effects.filter((e) => e.type !== 'DROP_SHADOW');
-  node.setSharedPluginData(NAMESPACE, KEY, '');
-  node.setRelaunchData({});
 }
 
 function postSelection() {
@@ -93,7 +34,17 @@ function postSelection() {
       if (node.effectStyleId) styled++;
     }
   }
-  post({ type: 'selection', total: figma.currentPage.selection.length, capable: nodes.length, managed, params, replaces, styled });
+  const blocked = nodes.map(mergeBlocker).find((reason) => reason !== null) ?? null;
+  post({
+    type: 'selection',
+    total: figma.currentPage.selection.length,
+    capable: nodes.length,
+    managed,
+    params,
+    replaces,
+    styled,
+    mergeBlocker: blocked,
+  });
 }
 
 figma.ui.onmessage = async (msg: UiMessage) => {
@@ -101,29 +52,39 @@ figma.ui.onmessage = async (msg: UiMessage) => {
     case 'ready': {
       const last = await figma.clientStorage.getAsync(LAST_USED);
       post({ type: 'init', last: last ? sanitize(last) : null });
+      if (rematchSelection()) figma.commitUndo();
       postSelection();
       break;
     }
     case 'add': {
       const params = sanitize(msg.params);
+      const notes = new Set<string>();
       let unstored = 0;
       for (const node of selected()) {
-        if (!readShadow(node) && !writeShadow(node, params)) unstored++;
+        if (readShadow(node)) continue;
+        const result = writeShadow(node, params, true);
+        if (!result.stored) unstored++;
+        if (result.note) notes.add(result.note);
       }
       figma.commitUndo();
-      if (unstored) {
-        figma.notify(`Shadow added, but ${unstored} layer${unstored > 1 ? 's' : ''} inside an instance can't keep its settings. Edit the main component to keep it editable.`);
-      }
+      report(notes, unstored);
       postSelection();
       break;
     }
     case 'update': {
       // Patch, not replace: with several shadows selected, only the touched setting changes.
+      const notes = new Set<string>();
       for (const node of selected()) {
         const current = readShadow(node);
-        if (current) writeShadow(node, sanitize({ ...current, ...msg.patch }));
+        if (!current) continue;
+        const result = writeShadow(node, sanitize({ ...current, ...msg.patch }), msg.commit);
+        if (result.note) notes.add(result.note);
       }
       if (msg.commit) figma.commitUndo();
+      if (notes.size) {
+        report(notes, 0);
+        postSelection(); // a refused merge flips back; show it
+      }
       break;
     }
     case 'remove': {
@@ -139,19 +100,21 @@ figma.ui.onmessage = async (msg: UiMessage) => {
   }
 };
 
-// Keep the UI honest when shadows change outside the plugin (undo, another editor).
+// Keep the UI honest when shadows change outside the plugin (undo, another editor), and
+// merged silhouettes in step with their objects.
 let page = figma.currentPage;
 let refresh: ReturnType<typeof setTimeout> | undefined;
 
 function onNodeChange(event: NodeChangeEvent) {
-  if (Date.now() - lastWrite < 500) return;
-  const ids = new Set(figma.currentPage.selection.map((n) => n.id));
-  const touched = event.nodeChanges.some(
-    (c) => c.type === 'PROPERTY_CHANGE' && ids.has(c.id) && (c.properties.includes('pluginData') || c.properties.includes('effects')),
-  );
-  if (!touched) return;
+  if (Date.now() - lastWriteAt() < 500) return;
+  const ids = new Set(selected().map((n) => n.id));
+  for (const node of figma.currentPage.selection) ids.add(node.id);
+  if (!event.nodeChanges.some((c) => c.type === 'PROPERTY_CHANGE' && ids.has(c.id))) return;
   clearTimeout(refresh);
-  refresh = setTimeout(postSelection, 150);
+  refresh = setTimeout(() => {
+    if (rematchSelection()) figma.commitUndo();
+    postSelection();
+  }, 200);
 }
 
 page.on('nodechange', onNodeChange);
@@ -160,4 +123,7 @@ figma.on('currentpagechange', () => {
   page = figma.currentPage;
   page.on('nodechange', onNodeChange);
 });
-figma.on('selectionchange', postSelection);
+figma.on('selectionchange', () => {
+  if (rematchSelection()) figma.commitUndo();
+  postSelection();
+});

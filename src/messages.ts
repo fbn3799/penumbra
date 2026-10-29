@@ -7,6 +7,7 @@ export interface SelectionState {
   params: ShadowParams | null; // settings of the first managed node
   replaces: number; // drop shadows "Add" would replace on unmanaged nodes
   styled: number; // unmanaged nodes whose effect style "Add" would detach
+  mergeBlocker: string | null; // why the selection can't merge, if it can't
 }
 
 export type PluginMessage =
