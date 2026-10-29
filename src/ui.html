@@ -13,6 +13,7 @@
     --text-3: var(--figma-color-text-tertiary, rgba(0, 0, 0, 0.35));
     --icon: var(--figma-color-icon, #1e1e1e);
     --border: var(--figma-color-border, #e6e6e6);
+    --bg-selected: var(--figma-color-bg-selected, #e5f4ff);
     --brand: var(--figma-color-bg-brand, #0d99ff);
     --brand-hover: var(--figma-color-bg-brand-hover, #007be5);
     --on-brand: var(--figma-color-text-onbrand, #ffffff);
@@ -31,14 +32,15 @@
     -webkit-font-smoothing: antialiased;
     user-select: none;
   }
-  main { flex: 1; overflow-y: auto; padding-bottom: 8px; }
+  main { flex: 1; overflow-y: auto; }
+  #content { padding-bottom: 8px; }
 
   /* Preview */
   .stage {
     position: relative;
     display: grid;
     place-items: center;
-    height: 156px;
+    height: 140px;
     overflow: hidden;
     isolation: isolate;
     background: var(--bg-2);
@@ -61,18 +63,65 @@
   /* Sections & rows */
   section { padding: 4px 0; }
   section + section { border-top: 1px solid var(--border); }
-  h2 { margin: 0; padding: 8px 12px 2px; font-size: 11px; font-weight: 600; }
+  h2 { margin: 0; padding: 6px 12px 2px; font-size: 11px; font-weight: 600; }
   .row {
     display: grid;
-    grid-template-columns: 64px 1fr 60px;
+    grid-template-columns: 64px 1fr auto;
     align-items: center;
     gap: 8px;
     height: 32px;
     padding: 0 12px;
   }
   .row > label { color: var(--text-2); white-space: nowrap; }
-  .row .wide { grid-column: 2 / 4; }
-  .track { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 4px 12px; }
+
+  /* Shadow list */
+  .list-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px 2px 0; }
+  .list-head h2 { padding-top: 4px; }
+  .shadow-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+    padding: 0 8px 0 12px;
+  }
+  .shadow-row:hover { background: var(--bg-hover); }
+  .shadow-row.active { background: var(--bg-selected); }
+  .shadow-row .chip { flex: none; width: 14px; height: 14px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1); }
+  .shadow-row .name { flex: none; font-weight: 500; }
+  .shadow-row .meta { flex: 1; min-width: 0; overflow: hidden; color: var(--text-3); white-space: nowrap; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  .shadow-row .icon { visibility: hidden; }
+  .shadow-row:hover .icon, .shadow-row.active .icon { visibility: visible; }
+  button.icon {
+    width: 24px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--icon);
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 1;
+  }
+  button.icon:hover { background: var(--bg-hover); }
+  .shadow-row.active button.icon:hover { background: rgba(0, 0, 0, 0.06); }
+
+  /* Start → end pairs */
+  .pair {
+    display: grid;
+    grid-template-columns: 64px 1fr 1fr;
+    align-items: center;
+    gap: 8px;
+    height: 32px;
+    padding: 0 12px;
+  }
+  .pair > label { color: var(--text-2); white-space: nowrap; }
+  .pair.head { height: 16px; color: var(--text-3); }
+  .field.scrub:not(:focus-within) { cursor: ew-resize; }
+  .field.scrub:not(:focus-within) input { pointer-events: none; }
+  .field.off { opacity: 0.4; pointer-events: none; }
+  .note { padding: 0 12px 4px 84px; color: var(--text-3); }
+  .note:empty { display: none; }
+  .list-note { padding: 4px 12px 2px; }
 
   /* Fields */
   .field {
@@ -100,44 +149,17 @@
     user-select: text;
   }
   .field .unit { color: var(--text-3); }
+  .field .label { flex: none; color: var(--text-2); }
+  .field.num input { text-align: right; }
 
-  /* Slider */
-  input[type="range"] {
-    --p: 50%;
-    flex: 1;
-    min-width: 0;
-    height: 16px;
-    margin: 0;
-    background: transparent;
-    -webkit-appearance: none;
-    appearance: none;
-  }
-  input[type="range"]::-webkit-slider-runnable-track {
-    height: 4px;
-    border-radius: 2px;
-    background: linear-gradient(to right, var(--icon) var(--p), var(--bg-3) var(--p));
-  }
-  input[type="range"]::-webkit-slider-thumb {
-    width: 12px;
-    height: 12px;
-    margin-top: -4px;
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18), 0 1px 3px rgba(0, 0, 0, 0.2);
-    -webkit-appearance: none;
-  }
-  input[type="range"]:focus { outline: 0; }
-  input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--focus); }
-
-  /* Direction dial */
+  /* Direction dial, inside the Direction field */
   .dial {
     position: relative;
     flex: none;
-    width: 24px;
-    height: 24px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
-    background: var(--bg-2);
-    box-shadow: inset 0 0 0 1px var(--border);
+    box-shadow: inset 0 0 0 1px var(--text-3);
     cursor: grab;
     touch-action: none;
   }
@@ -146,9 +168,9 @@
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 9px;
-    height: 2px;
-    margin-top: -1px;
+    width: 5px;
+    height: 1.5px;
+    margin-top: -0.75px;
     border-radius: 1px;
     background: var(--icon);
     transform-origin: 0 50%;
@@ -158,9 +180,9 @@
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 4px;
-    height: 4px;
-    margin: -2px 0 0 -2px;
+    width: 3px;
+    height: 3px;
+    margin: -1.5px 0 0 -1.5px;
     border-radius: 50%;
     background: var(--icon);
   }
@@ -205,8 +227,8 @@
   select:focus { border-color: var(--focus); }
 
   /* Merge switch */
-  .row.toggle { height: auto; min-height: 32px; padding-top: 4px; padding-bottom: 4px; }
-  .switch-line { display: flex; align-items: center; gap: 8px; color: var(--text-3); }
+  .merge { display: flex; align-items: center; gap: 6px; color: var(--text-2); cursor: pointer; }
+  .merge:has(.switch:disabled) { color: var(--text-3); cursor: default; }
   .switch {
     position: relative;
     flex: none;
@@ -238,8 +260,7 @@
   .switch:disabled { opacity: 0.4; cursor: default; }
 
   /* Copy positions */
-  .row.strip-row { height: 18px; }
-  .strip { position: relative; height: 10px; }
+  .strip { position: relative; height: 10px; margin: 4px 12px; }
   .strip::before {
     content: "";
     position: absolute;
@@ -250,7 +271,7 @@
     background: var(--bg-3);
   }
   .strip .gap { position: absolute; top: 2px; bottom: 2px; left: 0; border-radius: 2px; background: var(--bg-3); }
-  .strip .tick { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--icon); }
+  .strip .tick { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; border-radius: 1.5px; background: var(--icon); box-shadow: 0 0 0 1px var(--bg); }
 
   /* Generated layers */
   details { padding: 0 12px; border-top: 1px solid var(--border); }
@@ -268,6 +289,7 @@
   td { text-align: right; }
   th:first-child, td:first-child { text-align: left; color: var(--text-3); }
   td, th { padding: 2px 0; }
+  .dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; vertical-align: -1px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1); }
 
   /* Footer */
   footer {
@@ -312,54 +334,60 @@
 </head>
 <body>
   <main>
-    <div class="stage">
-      <div class="shadow" id="shadow"></div>
+   <div id="content">
+    <div class="stage" id="stage">
       <div class="card"></div>
       <div class="readout" id="readout"></div>
     </div>
 
     <section>
-      <div class="row" data-slider="elevation"></div>
+      <div class="list-head">
+        <h2>Shadows</h2>
+        <button class="icon" id="add-shadow" title="Add a shadow, starting as a copy of the selected one. The first shadow draws on top." aria-label="Add a shadow">+</button>
+      </div>
+      <div id="shadows"></div>
+      <div class="note list-note" id="effects-note"></div>
     </section>
 
     <section>
       <h2>Light</h2>
-      <div class="row" data-slider="distance"></div>
-      <div class="row" data-slider="softness"></div>
-      <div class="row" data-slider="angle"></div>
+      <div class="grid">
+        <div class="field num scrub" data-num="elevation"></div>
+        <div class="field num scrub" data-num="distance"></div>
+        <div class="field num scrub" data-num="softness"></div>
+        <div class="field num scrub" data-num="angle"></div>
+      </div>
     </section>
 
     <section>
       <h2>Shadow</h2>
-      <div class="row">
-        <label title="Shadow color">Color</label>
-        <div class="field color wide">
-          <span class="swatch" id="swatch"><input type="color" id="color" aria-label="Shadow color"></span>
-          <input type="text" id="hex" spellcheck="false" maxlength="7" aria-label="Hex color">
-        </div>
+      <div class="pair head"><span></span><span>Start</span><span>End</span></div>
+      <div class="pair">
+        <label title="Color next to the object (start) and at the far end (end). Each copy steps evenly between them.">Color</label>
+        <div class="field color" data-color="startColor"></div>
+        <div class="field color" data-color="endColor"></div>
       </div>
-      <div class="row" data-slider="opacity"></div>
+      <div class="pair">
+        <label title="Strength next to the object (start) and at the far end (end). Each copy steps evenly between them. Drag a field sideways to change it, Shift for steps of 10.">Opacity</label>
+        <div class="field num scrub" data-opacity="startOpacity"></div>
+        <div class="field num scrub" data-opacity="endOpacity"></div>
+      </div>
+      <div class="note" id="tone-note"></div>
       <div class="row">
         <label for="blend" title="Blend mode. Merged, it applies to the whole shadow at once.">Blending</label>
-        <select class="wide" id="blend"></select>
+        <select id="blend"></select>
+        <label class="merge" id="merge-label" title="Draw the copies as one shadow on a layer behind the object, grouped with it. Opacity and Blending then apply to the whole shadow, so overlaps never show. Off, the copies are drop shadows on the object.">Merge <input type="checkbox" id="merge" class="switch"></label>
       </div>
-      <div class="row toggle" id="merge-row">
-        <label for="merge" title="Draw the copies as one shadow on a layer behind the object, grouped with it. Opacity and Blending then apply to the whole shadow, so overlaps never show.">Merge</label>
-        <div class="wide switch-line">
-          <input type="checkbox" id="merge" class="switch">
-          <span id="merge-note"></span>
-        </div>
-      </div>
+      <div class="note" id="merge-note"></div>
     </section>
 
     <section>
       <h2>Copies</h2>
-      <div class="row" data-slider="layers"></div>
-      <div class="row" data-slider="spacing"></div>
-      <div class="row strip-row">
-        <span></span>
-        <div class="strip wide" id="strip" title="Where each copy sits, from the object (left) to the far end of the shadow (right). The shaded part is the elevation gap."></div>
+      <div class="grid">
+        <div class="field num scrub" data-num="layers"></div>
+        <div class="field num scrub" data-num="spacing"></div>
       </div>
+      <div class="strip" id="strip" title="Where each copy sits, from the object (left) to the far end of the shadow (right). The shaded part is the elevation gap."></div>
     </section>
 
     <details id="details">
@@ -369,6 +397,7 @@
         <tbody id="layers"></tbody>
       </table>
     </details>
+   </div>
   </main>
 
   <footer>

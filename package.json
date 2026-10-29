@@ -1,6 +1,6 @@
 {
   "name": "penumbra",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Figma plugin: physically-minded, layered object shadows you can re-edit any time.",
   "scripts": {

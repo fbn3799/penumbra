@@ -1,57 +1,87 @@
 # Penumbra
 
-A Figma plugin for object shadows that behave like light. Set where the shadow starts, how far it reaches, how soft it gets and how its copies are spaced; Penumbra writes the drop shadows. Select the layer again any time and the plugin picks the settings back up.
+A Figma plugin for object shadows that behave like light. Set where the shadow starts, how far it reaches, how soft it gets, how its copies are spaced and how strength and color run from the object outwards; Penumbra writes the drop shadows. Stack several shadows on one layer, say a tight contact shadow under a wide ambient one. Select the layer again any time and the plugin picks the settings back up.
 
 ## Controls
+
+**Shadows** lists the layer's shadows. Click one to edit it, **+** adds one (a copy of the selected shadow, right below it), **−** removes it, up to 16 shadows. The first shadow draws on top. Everything below applies to the selected shadow.
+
+Every number is a field: drag it sideways to change it (Shift snaps to round steps), type a value, or use the arrow keys (Shift for 10 steps). A click without a drag starts typing. The window grows and shrinks with its content, so it doesn't scroll until it reaches 820 px (many shadows, or the open copy table).
 
 | Control | What it does |
 |---|---|
 | **Elevation** | How far from the object the shadow starts, in px. 0 rests on the surface, with a tight contact shadow at the edge. |
 | **Distance** | How far the shadow reaches beyond that gap, in px. The farthest copy sits at elevation + distance. |
 | **Softness** | Blur of the farthest copy, in px. Closer copies are sharper, in step with their offset, the way a shadow softens the further it falls. |
-| **Direction** | Where the shadow falls. 90° is straight down. Drag the dial, or hold Shift to snap to 15°. |
-| **Color** | Shadow color. A tinted dark reads more natural than black. |
-| **Opacity** | Strength of the whole shadow. |
+| **Direction** | Where the shadow falls. 90° is straight down. Drag the field (Shift snaps to 15°), or drag the little dial in it to aim. |
+| **Color**, Start / End | Color next to the object and at the far end. Each copy steps evenly between them. A tinted dark reads more natural than black. |
+| **Opacity**, Start / End | Strength next to the object and at the far end, in even steps per copy (see below). With one copy only Start applies. |
 | **Blending** | Blend mode, the same list as Figma's. Merged, it applies to the shadow as one. |
-| **Merge** | Draws the copies as one shadow on a layer behind the object (see below). Off, the copies are separate drop shadows on the object. |
-| **Count** | How many copies build the shadow. 1 = one solid shadow. |
+| **Merge** | Draws this shadow's copies on its own layer behind the object (see below). Off, they're drop shadows on the object. Each shadow merges or not on its own. |
+| **Count** | How many copies build this shadow, up to 12. 1 = one solid shadow. Figma keeps only 8 drop shadows per layer; see [More than 8 copies](#more-than-8-copies). |
 | **Spacing** | Each gap between copies is this many times the one before: 1× is even, 2× doubles every gap, below 1× the widest gaps sit next to the object. The strip under it shows where each copy lands. |
 
-The preview mirrors the copies, blend mode and merge included (Chromium can't do Plus darker, so the preview shows it as Multiply; Figma renders it properly). The generated values are listed under **drop shadows generated**.
+The preview mirrors every shadow, blend mode and merge included (Chromium can't do Plus darker, so the preview shows it as Multiply; Figma renders it properly). The strip under Spacing shows each copy in its color. The generated values for the selected shadow are listed under **drop shadows generated**.
 
-## Merge: one shadow, one opacity
+## Start and end opacity
 
-Figma draws every drop shadow on a layer separately and has no shared opacity for them, so where copies overlap they add up. Off, Penumbra solves each copy's alpha so the stack adds up to exactly the set opacity. Hard copies still step visibly, though.
+Copies overlap: the area next to the object is covered by every copy, the far end by the last one only. So Penumbra doesn't give the copies the start and end values themselves. It solves each copy's alpha so that the overlap comes out at Start next to the object, at End at the far end, and in even steps in between. The numbers in Figma's effects panel are those solved alphas.
 
-On, Penumbra groups the object with a shadow layer:
+Two consequences:
+
+- **Start can't be lighter than End.** Every copy covers the area next to the object, so the shadow is at least as strong there as at the far end. A lighter Start levels out at End, and the panel says so.
+- **Even strength as effects is the farthest copy alone**, since any other copy would darken the area next to the object. Merged, every copy stays: see below.
+
+Colors step evenly per copy, and the nearest copy draws on top. As effects, the copies' colors mix where they overlap, so next to the object the start color is tinted by the later ones. Merged, the nearest copy is opaque, so the start color shows as set.
+
+## Merge: one shadow layer, one opacity
+
+Figma draws every drop shadow on a layer separately and has no shared opacity for them, so where copies overlap they add up, and hard copies step visibly.
+
+Merged, Penumbra groups the object with one shadow layer per merged shadow:
 
 ```
 <object name>      group
-  Shadow           locked; carries the drop shadows, opacity and blend mode
-    Color          the shadow color, masked to the silhouette
-    Silhouette     a copy of the object (an instance, for a main component)
-  <object>
+  <object>         shadows that aren't merged stay effects here, above every shadow layer
+  More shadows     only past 8 such copies, see below
+  Shadow 1         locked; carries the opacity and blend mode
+    8 copies       up to 8 of the drop shadows, the nearest on top
+      Color        the start color, masked to the silhouette
+      Silhouette   a copy of the object (an instance, for a main component)
+    4 copies       the farther ones, when there are more than 8
+  Shadow 2         the next merged shadow, below the first
 ```
 
-The copies are drawn opaque, so they fuse into one shape, and the shadow layer's opacity fades that shape as a whole. Because it's a real layer, it works on any background, photos included. At the same opacity a merged shadow reads darker than a stacked one, since the whole core is at full strength.
+The nearest copy is drawn opaque and the shadow layer's opacity carries the Start strength, so the core fuses into one shape and fades as a whole; with equal Start and End every copy is opaque and the shadow is one even shape. Because it's a real layer, it works on any background, photos included. At the same opacity a merged shadow reads darker than a stacked one, since its core is at full strength. Each merged shadow adds a copy of the object, so keep that in mind on heavy layers.
 
 - The group has the object's bounds, so it takes the object's slot in an auto layout without moving anything.
 - Clicking the shadow selects the group; the plugin treats the group and the object as the same shadow.
 - When the object changes shape (resize, corner radius, text), the silhouette is re-copied the next time you select it or edit with the plugin open.
 - Not possible for layers that fill their auto layout (a group can't fill), layers inside an instance, or variants. The switch says why and the shadow stays as effects.
-- Turning Merge off, or **Remove**, puts the object back where the group was.
+- Turning Merge off on every shadow, or **Remove**, puts the object back where the group was.
+
+## More than 8 copies
+
+Figma keeps at most 8 drop shadows on a layer (frames, groups and effect styles alike) and drops the rest without an error. Inner shadows and blurs don't count. Penumbra works around it:
+
+- **As effects**, the top 8 copies stay on the object. The rest go on a **More shadows** layer right below it, grouped with the object the same way a merged shadow is, and they draw as if they were all on the object.
+- **Merged**, the shadow layer holds its copies in parts of 8, each with its own copy of the object.
+- With 8 copies or fewer as effects, nothing changes: no group, no extra layer. The panel says when copies move to a layer.
+- Layers that can't be grouped (see above) keep Figma's limit: the bottom copies are left out, and the panel says how many.
+- Both kinds of shadow layer sit under a copy of the object, which shows through only where the object itself is see-through.
 
 ## Editing later
 
 - The settings are stored on the layer. Select it with the plugin open and the controls load them; from then on every change applies live. Each drag or typed value is one undo step.
 - Shadowed layers get an **Edit shadow** button in Figma's right sidebar (relaunch button), which reopens the plugin on that layer.
-- With several shadowed layers selected, a change only touches the setting you moved. Each layer keeps the rest of its own settings.
-- Select a layer without a shadow and the current settings stay in the panel, so **Add shadow** copies a shadow from one layer to another. The last-used settings are remembered between sessions.
-- Shadows made with v0.1 (when elevation was an overall size) convert to the same reach on first edit.
+- With several shadowed layers selected, the panel shows the first layer's shadows. A change only touches the setting you moved, on the same shadow (by position) of each layer. Each layer keeps the rest of its own settings.
+- Select a layer without a shadow and the current shadows stay in the panel, so **Add shadow** copies them from one layer to another. The last-used shadows are remembered between sessions.
+- Shadows made with v0.1 or v0.2 convert on first edit: v0.2's one color and opacity become equal start and end colors, and a stacked v0.2 shadow keeps its fade (Start at the old opacity, End at one copy's alpha).
 
 ## What it changes
 
 - Penumbra **owns a layer's drop shadows.** Adding a shadow replaces any drop shadows already there (the footer says how many). Inner shadows, layer and background blurs, and other effects are kept.
+- Merged shadows, and copies past Figma's 8, group the layer with shadow layers (see above).
 - Setting effects detaches an effect style if the layer had one (the footer warns about this too).
 - Layers inside an instance can take the shadow but can't store settings, so edit the main component instead. The plugin tells you when this happens.
 - Settings live in shared plugin data (`penumbra` namespace), so shadows stay editable when the plugin id changes on publish.
