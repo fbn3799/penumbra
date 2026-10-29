@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Publish Penumbra</title>
+<style>
+  :root {
+    --bg: #f6f3ee; --card: #ffffff; --ink: #1f1a16; --soft: #5b5249; --muted: #8a7d70;
+    --line: #e6dfd5; --accent: #d9653b; --ok: #15803d; --field: #f8f6f2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #17140f; --card: #211d18; --ink: #f2ede6; --soft: #c9bfb3; --muted: #9a8f83;
+      --line: #3a332b; --accent: #e77c55; --ok: #4ade80; --field: #2a251f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 16px 80px; }
+  h1 { font-size: 30px; margin: 0 0 4px; }
+  .lead { color: var(--soft); margin: 0 0 32px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; margin-bottom: 18px; }
+  h2 { font-size: 17px; margin: 0 0 4px; }
+  h2 span { color: var(--accent); margin-right: 6px; }
+  .hint { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+  .row { display: grid; grid-template-columns: 130px 1fr auto; gap: 10px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
+  .row:first-of-type { border-top: 0; }
+  .label { color: var(--soft); font-size: 13px; padding-top: 7px; }
+  .value { background: var(--field); border-radius: 8px; padding: 6px 10px; min-height: 34px; word-break: break-word; }
+  .value.plain { background: none; padding-left: 0; }
+  textarea.value { width: 100%; min-height: 330px; border: 0; resize: vertical; font: inherit; color: inherit; }
+  button { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--card); color: var(--ink);
+    border-radius: 8px; padding: 6px 12px; cursor: pointer; min-width: 74px; }
+  button:hover { border-color: var(--accent); }
+  button.done { color: var(--ok); border-color: var(--ok); }
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tags button { min-width: 0; }
+  .tags button b { font-weight: 600; color: var(--muted); margin-right: 4px; }
+  ol.check { list-style: none; padding: 0; margin: 0; }
+  ol.check li { padding: 7px 0; border-top: 1px solid var(--line); }
+  ol.check li:first-child { border-top: 0; }
+  ol.check label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+  ol.check input { margin-top: 4px; accent-color: var(--accent); }
+  .images { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+  .img { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .img img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--field); }
+  .img.icon img { aspect-ratio: 1; object-fit: contain; padding: 30px; }
+  .img div { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; font-size: 13px; }
+  kbd { font: 12px ui-monospace, Menlo, monospace; background: var(--field); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+  code { font: 13px ui-monospace, Menlo, monospace; }
+  @media (max-width: 560px) { .row { grid-template-columns: 1fr auto; } .label { grid-column: 1 / -1; padding: 0; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Publish Penumbra</h1>
+  <p class="lead">Everything for Figma's publish form, ready to copy. Publishing only works in the <b>Figma desktop app</b>.</p>
+
+  <section>
+    <h2><span>1</span>Try it once in Figma desktop</h2>
+    <p class="hint">Review rejects plugins that crash, and Penumbra has only run in a browser so far. <b>Plugins → Development → Import plugin from manifest…</b>, then in the file picker press <kbd>⌘</kbd><kbd>⇧</kbd><kbd>G</kbd> and paste:</p>
+    <div class="row"><div class="label">Manifest</div><div class="value" id="manifest"></div><button data-copy="manifest">Copy</button></div>
+    <p class="hint">If Figma rejects the id: <b>Plugins → Development → New plugin…</b>, copy the id it generates into <code>manifest.json</code>, delete the folder it made, import again.</p>
+    <ol class="check" id="checklist">
+      <li><label><input type="checkbox"><span>Select a rectangle, open Penumbra, <b>Add shadow</b>. The shadow appears and the panel shows its settings.</span></label></li>
+      <li><label><input type="checkbox"><span>Drag Elevation, Distance and Softness sideways. The layer follows live; one <kbd>⌘</kbd><kbd>Z</kbd> undoes one drag.</span></label></li>
+      <li><label><input type="checkbox"><span>Turn <b>Merge</b> on: the layer is grouped with a locked "Shadow" layer. Off again: the group goes away.</span></label></li>
+      <li><label><input type="checkbox"><span>Count 12 with Merge off: a "More shadows" layer appears. Back to 8: it goes.</span></label></li>
+      <li><label><input type="checkbox"><span>Add a second shadow with <b>+</b>, remove it with <b>−</b>.</span></label></li>
+      <li><label><input type="checkbox"><span>Deselect, close the plugin, select the layer again: the sidebar shows <b>Edit shadow</b> and reopens the same settings.</span></label></li>
+      <li><label><input type="checkbox"><span>A layer inside an instance: the panel says why it can't merge, Figma notes the settings can't be stored, nothing errors.</span></label></li>
+      <li><label><input type="checkbox"><span>The window fits its content without scrolling.</span></label></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2><span>2</span>Describe it</h2>
+    <p class="hint"><b>Plugins → Manage plugins…</b> → Penumbra → <b>Publish</b>. The name and tagline carry the words people search for ("shadow", "drop shadow", "realistic shadow"), so keep them as they are.</p>
+    <div class="row"><div class="label">Name</div><div class="value" id="name">Penumbra – Realistic, Layered Drop Shadows</div><button data-copy="name">Copy</button></div>
+    <div class="row"><div class="label">Tagline</div><div class="value" id="tagline">Smooth, soft and long shadows with real elevation and color fade, editable anytime.</div><button data-copy="tagline">Copy</button></div>
+    <div class="row"><div class="label">Description</div><textarea class="value" id="description" readonly>Realistic drop shadows for Figma, built the way light makes them: a stack of soft copies that grows wider and fainter with distance. Smooth, soft, long or colored, on cards, buttons, icons and images. And every shadow stays editable. Select the layer again, or click "Edit shadow" in the sidebar, and every setting comes back.
+
+• Light: elevation (the gap before the shadow starts), distance, softness and direction.
+• Start and end: the color and opacity next to the object and at the far end. Penumbra solves each copy's alpha so the overlaps add up to what you set.
+• Copies: one for a single solid shadow, up to twelve for a smooth one, with exponential spacing.
+• Several shadows per layer: a tight contact shadow, a long key shadow and a soft ambient fill, each with its own settings.
+• Merge: draws a shadow on its own locked layer, grouped with the object, so it has one opacity, any blend mode and no visible overlaps. Works on photos and any shape.
+• Past Figma's limit: Figma keeps 8 drop shadows per layer. Penumbra puts the rest on a grouped layer instead of dropping them.
+• Every number is a field: drag it sideways (Shift snaps), click to type, or use the arrow keys. Changes apply live, one undo step per drag.
+• Several layers at once: an edit changes only the setting you touched.
+
+Layers inside instances, variants and auto layout fill layers can't be grouped, so they keep their shadows as effects.
+
+Penumbra only changes the layers you select. It has no network access; settings are stored on the layers, and your last shadow on your device.
+
+Open source (MIT): https://github.com/fbn3799/penumbra</textarea><button data-copy="description">Copy</button></div>
+    <div class="row"><div class="label">Category</div><div class="value plain">Design tools, closest subcategory on offer</div><span></span></div>
+    <div class="row"><div class="label">Tags</div><div class="tags" id="tags"></div><span></span></div>
+    <p class="hint">Strongest first: if the form only takes five, stop after the fifth.</p>
+  </section>
+
+  <section>
+    <h2><span>3</span>Images</h2>
+    <p class="hint">In each upload's file picker press <kbd>⌘</kbd><kbd>⇧</kbd><kbd>G</kbd> and paste the path. Carousel in this order.</p>
+    <div class="images" id="images"></div>
+  </section>
+
+  <section>
+    <h2><span>4</span>Final details</h2>
+    <div class="row"><div class="label">Support contact</div><div class="value" id="support">info@fabianschneider.net</div><button data-copy="support">Copy</button></div>
+    <div class="row"><div class="label">Version notes</div><div class="value" id="notes">First release.</div><button data-copy="notes">Copy</button></div>
+    <div class="row"><div class="label">Publisher</div><div class="value plain">Fabian Schneider</div><span></span></div>
+    <div class="row"><div class="label">Price</div><div class="value plain">Free</div><span></span></div>
+    <div class="row"><div class="label">Comments</div><div class="value plain">Allowed</div><span></span></div>
+    <div class="row"><div class="label">Network access</div><div class="value plain">Shows "No access to network" by itself</div><span></span></div>
+  </section>
+
+  <section>
+    <h2><span>5</span>Data security form</h2>
+    <p class="hint">Optional; Flow to Lottie has one. Paste whichever answer the question asks for.</p>
+    <div class="row"><div class="label">Network</div><div class="value" id="ds-network">None. The plugin makes no network requests; its manifest allows no domains.</div><button data-copy="ds-network">Copy</button></div>
+    <div class="row"><div class="label">Data collected</div><div class="value" id="ds-collect">None. No accounts, analytics, tracking or third parties.</div><button data-copy="ds-collect">Copy</button></div>
+    <div class="row"><div class="label">Data stored</div><div class="value" id="ds-store">Each shadow's settings in shared plugin data on its layer, inside the file. The last-used shadow in figma.clientStorage, on the user's device.</div><button data-copy="ds-store">Copy</button></div>
+    <div class="row"><div class="label">What it changes</div><div class="value" id="ds-changes">Only the selected layers' drop shadows, and the shadow layers it groups with them.</div><button data-copy="ds-changes">Copy</button></div>
+  </section>
+
+  <section>
+    <h2><span>6</span>Once it's live</h2>
+    <p class="hint" style="margin:0">Send Claude the Community link. It puts the id Figma assigned into <code>manifest.json</code>, so updates go to the same listing, and adds the link to the README.</p>
+  </section>
+</main>
+<script>
+  const dir = decodeURIComponent(location.pathname.replace(/[^/]*$/, ''));
+  document.getElementById('manifest').textContent = dir + 'manifest.json';
+
+  const tags = ['shadow', 'drop shadow', 'realistic shadow', 'smooth shadow', 'layered shadow', 'soft shadow', 'long shadow', 'elevation', 'box shadow', 'depth', 'effects', 'light'];
+  const tagBox = document.getElementById('tags');
+  tags.forEach((tag, i) => {
+    const b = document.createElement('button');
+    b.dataset.text = tag;
+    b.innerHTML = `<b>${i + 1}</b>${tag}`;
+    tagBox.appendChild(b);
+  });
+
+  const images = [
+    ['Icon', 'icon.png', true], ['Thumbnail', 'cover.png'],
+    ['Carousel 1', 'carousel-1-panel.png'], ['Carousel 2', 'carousel-2-elevation.png'],
+    ['Carousel 3', 'carousel-3-color.png'], ['Carousel 4', 'carousel-4-stack.png'],
+  ];
+  const grid = document.getElementById('images');
+  for (const [label, file, icon] of images) {
+    const card = document.createElement('div');
+    card.className = 'img' + (icon ? ' icon' : '');
+    card.innerHTML = `<img src="assets/${file}" alt="${label}"><div><span>${label}</span><button>Copy path</button></div>`;
+    card.querySelector('button').dataset.text = dir + 'assets/' + file;
+    grid.appendChild(card);
+  }
+
+  async function copy(text, button) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const t = document.createElement('textarea');
+      t.value = text;
+      document.body.appendChild(t);
+      t.select();
+      document.execCommand('copy');
+      t.remove();
+    }
+    const label = button.innerHTML;
+    button.classList.add('done');
+    button.textContent = 'Copied';
+    setTimeout(() => { button.classList.remove('done'); button.innerHTML = label; }, 1200);
+  }
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('button');
+    if (!button || button.classList.contains('done')) return;
+    const source = button.dataset.copy && document.getElementById(button.dataset.copy);
+    const text = source ? (source.value ?? source.textContent) : button.dataset.text;
+    if (text) copy(text, button);
+  });
+
+  // Ticks survive a reload; without storage the list just starts empty.
+  const boxes = [...document.querySelectorAll('#checklist input')];
+  let saved = [];
+  try { saved = JSON.parse(localStorage.getItem('penumbra-publish-checks') || '[]'); } catch {}
+  boxes.forEach((box, i) => {
+    box.checked = !!saved[i];
+    box.addEventListener('change', () => {
+      try { localStorage.setItem('penumbra-publish-checks', JSON.stringify(boxes.map((b) => b.checked))); } catch {}
+    });
+  });
+</script>
+</body>
+</html>

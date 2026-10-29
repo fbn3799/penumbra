@@ -1,5 +1,7 @@
 # Publishing to Figma Community
 
+**For Fabian: open [publish.html](publish.html)**, the same content with a copy button on every value. This file is the agent-facing version; when a value changes, change it in both.
+
 Figma only accepts submissions from the **desktop app**, from an account with two-factor authentication on (Fabian's account has it; Flow to Lottie and Copy Paste Overrides went out from it). Review takes a few days and the answer comes by email.
 
 ## 1. Run it once in Figma desktop
