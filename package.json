@@ -1,0 +1,20 @@
+{
+  "name": "penumbra",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Figma plugin: physically-minded, layered object shadows you can re-edit any time.",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "esbuild test/shadow.test.ts --bundle --platform=node --format=esm --outfile=.test/shadow.test.mjs --log-level=warning && node --test .test/shadow.test.mjs"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.100.0",
+    "esbuild": "^0.20.2",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "@types/node": "^22.20.5"
+  }
+}
