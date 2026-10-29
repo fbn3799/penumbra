@@ -1,7 +1,5 @@
 # Publishing to Figma Community
 
-**For Fabian: open [publish.html](publish.html)**, the same content with a copy button on every value. This file is the agent-facing version; when a value changes, change it in both.
-
 Figma only accepts submissions from the **desktop app**, from an account with two-factor authentication on (Fabian's account has it; Flow to Lottie and Copy Paste Overrides went out from it). Review takes a few days and the answer comes by email.
 
 ## 1. Run it once in Figma desktop
@@ -28,37 +26,21 @@ Then, on a scratch file:
 
 ## 2. Publish
 
-Figma desktop → **Plugins → Manage plugins…** (or Development → Manage plugins in development) → Penumbra → **Publish**. Fill in:
+Figma desktop → **Plugins → Manage plugins…** (or Development → Manage plugins in development) → Penumbra → **Publish**. Everything you paste has its own block below.
 
-| Field | Value |
-|---|---|
-| Name | Penumbra – Realistic, Layered Drop Shadows |
-| Tagline | Smooth, soft and long shadows with real elevation and color fade, editable anytime. |
-| Description | below |
-| Category | Design tools (closest subcategory on offer) |
-| Icon | `assets/icon.png` (128 × 128) |
-| Thumbnail | `assets/cover.png` (1920 × 1080) |
-| Carousel | `assets/carousel-1-panel.png`, `-2-elevation`, `-3-color`, `-4-stack`, in that order |
-| Support contact | info@fabianschneider.net |
-| Network access | shows "No access to network" (from the manifest) |
-| Comments | allowed |
-| Price | Free |
-| Publisher | Fabian Schneider |
-| Version notes | First release. |
+**Name**
 
-Tags, in this order (Figma's tutorial allows twelve, a help mirror says five, so the first five carry the weight): `shadow`, `drop shadow`, `realistic shadow`, `smooth shadow`, `layered shadow`, `soft shadow`, `long shadow`, `elevation`, `box shadow`, `depth`, `effects`, `light`.
+```
+Penumbra – Realistic, Layered Drop Shadows
+```
 
-### Being found for "shadow"
+**Tagline**
 
-Community search ranks on the **name** first and reads the **tagline** too. Checked on 2026-10-29: every top plugin for "shadow" has the word in its name, and plugins with a few hundred users rank on the strength of their tagline alone ("Shadow Pro" is second for "realistic shadow" because its tagline says "realistic"). Plain "Penumbra" would match nothing, hence the name and tagline above:
+```
+Smooth, soft and long shadows with real elevation and color fade, editable anytime.
+```
 
-- the name carries **shadows**, **drop shadows**, **realistic** and **layered**;
-- the tagline carries **smooth**, **soft**, **long**, **elevation** and **color**;
-- the description's first lines repeat them in sentences, and the tags cover the rest.
-
-`manifest.json` has the same name, so the publish form starts with it. Keep both if you rename. After publishing, search "shadow" filtered to Plugins and sorted by Recent to see it listed; relevance rank grows with users and likes.
-
-### Description
+**Description**
 
 ```
 Realistic drop shadows for Figma, built the way light makes them: a stack of soft copies that grows wider and fainter with distance. Smooth, soft, long or colored, on cards, buttons, icons and images. And every shadow stays editable. Select the layer again, or click "Edit shadow" in the sidebar, and every setting comes back.
@@ -79,14 +61,121 @@ Penumbra only changes the layers you select. It has no network access; settings 
 Open source (MIT): https://github.com/fbn3799/penumbra
 ```
 
+**Tags**, strongest first. Figma's tutorial allows twelve and a help mirror says five; if the form stops at five, these five carry the weight.
+
+```
+shadow
+```
+
+```
+drop shadow
+```
+
+```
+realistic shadow
+```
+
+```
+smooth shadow
+```
+
+```
+layered shadow
+```
+
+```
+soft shadow
+```
+
+```
+long shadow
+```
+
+```
+elevation
+```
+
+```
+box shadow
+```
+
+```
+depth
+```
+
+```
+effects
+```
+
+```
+light
+```
+
+**Support contact**
+
+```
+info@fabianschneider.net
+```
+
+**Version notes**
+
+```
+First release.
+```
+
+**Images**, from `assets/`:
+
+- Icon: `icon.png` (128 × 128)
+- Thumbnail: `cover.png` (1920 × 1080)
+- Carousel, in this order: `carousel-1-panel.png`, `carousel-2-elevation.png`, `carousel-3-color.png`, `carousel-4-stack.png`
+
+**Picked, not pasted:**
+
+| Field | Choose |
+|---|---|
+| Category | Design tools (closest subcategory on offer) |
+| Publisher | Fabian Schneider |
+| Price | Free |
+| Comments | Allowed |
+| Network access | Shows "No access to network" by itself (from the manifest) |
+
 ### Data security form
 
-Optional, but Flow to Lottie has one, and the facts are short:
+Optional, but Flow to Lottie has one. Paste whichever answer a question asks for.
 
-- **Network:** none. `networkAccess.allowedDomains` is `["none"]`; the plugin makes no requests.
-- **Data collected or sent:** none. No accounts, analytics, tracking or third parties.
-- **Data stored:** each shadow's settings in shared plugin data on its layer (inside the file, namespace `penumbra`), and the last-used shadow in `figma.clientStorage` (local to the device).
-- **What it changes:** only the selected layers' drop shadows, and the shadow layers it groups with them.
+**Network**
+
+```
+None. The plugin makes no network requests; its manifest allows no domains.
+```
+
+**Data collected or sent**
+
+```
+None. No accounts, analytics, tracking or third parties.
+```
+
+**Data stored**
+
+```
+Each shadow's settings in shared plugin data on its layer, inside the file. The last-used shadow in figma.clientStorage, on the user's device.
+```
+
+**What it changes**
+
+```
+Only the selected layers' drop shadows, and the shadow layers it groups with them.
+```
+
+### Being found for "shadow"
+
+Community search ranks on the **name** first and reads the **tagline** too. Checked on 2026-10-29: every top plugin for "shadow" has the word in its name, and plugins with a few hundred users rank on the strength of their tagline alone ("Shadow Pro" is second for "realistic shadow" because its tagline says "realistic"). Plain "Penumbra" would match nothing, hence the name and tagline above:
+
+- the name carries **shadows**, **drop shadows**, **realistic** and **layered**;
+- the tagline carries **smooth**, **soft**, **long**, **elevation** and **color**;
+- the description's first lines repeat them in sentences, and the tags cover the rest.
+
+`manifest.json` has the same name, so the publish form starts with it. Keep both if you rename. After publishing, search "shadow" filtered to Plugins and sorted by Recent to see it listed; relevance rank grows with users and likes.
 
 ## 3. After it's live
 
