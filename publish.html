@@ -60,7 +60,7 @@
     <h2><span>1</span>Try it once in Figma desktop</h2>
     <p class="hint">Review rejects plugins that crash, and Penumbra has only run in a browser so far. <b>Plugins → Development → Import plugin from manifest…</b>, then in the file picker press <kbd>⌘</kbd><kbd>⇧</kbd><kbd>G</kbd> and paste:</p>
     <div class="row"><div class="label">Manifest</div><div class="value" id="manifest"></div><button data-copy="manifest">Copy</button></div>
-    <p class="hint">If Figma rejects the id: <b>Plugins → Development → New plugin…</b>, copy the id it generates into <code>manifest.json</code>, delete the folder it made, import again.</p>
+    <p class="hint">The manifest has the id Figma issued (<code>1697766878329271677</code>), so this import is the plugin you publish.</p>
     <ol class="check" id="checklist">
       <li><label><input type="checkbox"><span>Select a rectangle, open Penumbra, <b>Add shadow</b>. The shadow appears and the panel shows its settings.</span></label></li>
       <li><label><input type="checkbox"><span>Drag Elevation, Distance and Softness sideways. The layer follows live; one <kbd>⌘</kbd><kbd>Z</kbd> undoes one drag.</span></label></li>
@@ -126,7 +126,7 @@ Open source (MIT): https://github.com/fbn3799/penumbra</textarea><button data-co
 
   <section>
     <h2><span>6</span>Once it's live</h2>
-    <p class="hint" style="margin:0">Send Claude the Community link. It puts the id Figma assigned into <code>manifest.json</code>, so updates go to the same listing, and adds the link to the README.</p>
+    <p class="hint" style="margin:0">Send Claude the Community link. It adds the link to the README and checks the listing's id matches the one in <code>manifest.json</code>, so updates go to the same listing.</p>
   </section>
 </main>
 <script>

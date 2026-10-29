@@ -96,7 +96,7 @@ npm run build
 
 Figma desktop → **Plugins → Development → Import plugin from manifest…** → pick `manifest.json`. Then run it from **Plugins → Development → Penumbra**.
 
-If Figma rejects the placeholder `id` in `manifest.json`: create a new plugin in Figma (Plugins → Development → New plugin), copy the id it generates into the manifest, and import again.
+The `id` in `manifest.json` is Penumbra's Figma-issued plugin id. Keep it, so releases go to the same listing.
 
 Publishing to Figma Community (checklist, listing copy, images): [PUBLISHING.md](PUBLISHING.md).
 

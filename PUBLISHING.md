@@ -13,7 +13,7 @@ npm install
 npm run build
 ```
 
-**Plugins → Development → Import plugin from manifest…** → `manifest.json`. If Figma rejects the placeholder `id`, use **Plugins → Development → New plugin…**, copy the id it generates into `manifest.json`, delete the folder it made, and import again.
+**Plugins → Development → Import plugin from manifest…** → `manifest.json`. The manifest carries the id Figma issued (`1697766878329271677`, since 2026-10-29), so the imported plugin and the published listing are the same.
 
 Then, on a scratch file:
 
@@ -90,7 +90,7 @@ Optional, but Flow to Lottie has one, and the facts are short:
 
 ## 3. After it's live
 
-- Copy the id Figma assigned into `manifest.json`, so later releases update the same listing, and commit it.
+- Check the listing's id (in its Community URL) matches `manifest.json`, so later releases update the same listing.
 - Add the Community link to the top of the README.
 - Tag the release: `git tag v0.3.0 && git push --tags`.
 
