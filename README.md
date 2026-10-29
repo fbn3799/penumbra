@@ -85,6 +85,7 @@ Figma keeps at most 8 drop shadows on a layer (frames, groups and effect styles 
 - Setting effects detaches an effect style if the layer had one (the footer warns about this too).
 - Layers inside an instance can take the shadow but can't store settings, so edit the main component instead. The plugin tells you when this happens.
 - Settings live in shared plugin data (`penumbra` namespace), so shadows stay editable when the plugin id changes on publish.
+- No network access. Besides the layers, Penumbra keeps only your last-used shadow, in Figma's client storage on your device.
 
 ## Install (development)
 
@@ -96,6 +97,8 @@ npm run build
 Figma desktop → **Plugins → Development → Import plugin from manifest…** → pick `manifest.json`. Then run it from **Plugins → Development → Penumbra**.
 
 If Figma rejects the placeholder `id` in `manifest.json`: create a new plugin in Figma (Plugins → Development → New plugin), copy the id it generates into the manifest, and import again.
+
+Publishing to Figma Community (checklist, listing copy, images): [PUBLISHING.md](PUBLISHING.md).
 
 ## Develop
 

@@ -78,7 +78,23 @@ function edit(change: (shadows: ShadowParams[]) => ShadowParams[] | null, rematc
   return notes;
 }
 
-figma.ui.onmessage = async (msg: UiMessage) => {
+// A layer Penumbra can't change shouldn't leave the panel stuck on a developer error.
+function guard<T extends unknown[]>(run: (...args: T) => unknown) {
+  return async (...args: T) => {
+    try {
+      await run(...args);
+    } catch (error) {
+      figma.notify(`Penumbra couldn't change this layer: ${error instanceof Error ? error.message : error}`, { error: true });
+      try {
+        postSelection();
+      } catch {
+        // the selection is gone; the next selectionchange updates the panel
+      }
+    }
+  };
+}
+
+figma.ui.onmessage = guard(async (msg: UiMessage) => {
   switch (msg.type) {
     case 'ready': {
       post({ type: 'init', last: lastUsed(await figma.clientStorage.getAsync(LAST_USED)) });
@@ -151,7 +167,7 @@ figma.ui.onmessage = async (msg: UiMessage) => {
       break;
     }
   }
-};
+});
 
 // Keep the UI honest when shadows change outside the plugin (undo, another editor), and
 // merged silhouettes in step with their objects.
@@ -164,10 +180,13 @@ function onNodeChange(event: NodeChangeEvent) {
   for (const node of figma.currentPage.selection) ids.add(node.id);
   if (!event.nodeChanges.some((c) => c.type === 'PROPERTY_CHANGE' && ids.has(c.id))) return;
   clearTimeout(refresh);
-  refresh = setTimeout(() => {
-    if (rematchSelection()) figma.commitUndo();
-    postSelection();
-  }, 200);
+  refresh = setTimeout(
+    guard(() => {
+      if (rematchSelection()) figma.commitUndo();
+      postSelection();
+    }),
+    200,
+  );
 }
 
 page.on('nodechange', onNodeChange);
@@ -176,7 +195,10 @@ figma.on('currentpagechange', () => {
   page = figma.currentPage;
   page.on('nodechange', onNodeChange);
 });
-figma.on('selectionchange', () => {
-  if (rematchSelection()) figma.commitUndo();
-  postSelection();
-});
+figma.on(
+  'selectionchange',
+  guard(() => {
+    if (rematchSelection()) figma.commitUndo();
+    postSelection();
+  }),
+);
