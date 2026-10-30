@@ -1,19 +1,30 @@
 import type { PluginMessage, SelectionState, UiMessage } from './messages';
 import {
   BLEND_MODES,
+  CURVE_REACH_X,
+  CURVE_REACH_Y,
   DEFAULTS,
   MAX_EFFECTS,
+  MAX_LIGHTS,
   MAX_SHADOWS,
+  applyPatch,
   computeCopies,
-  looseCopies,
+  dropCopies,
+  ease,
+  innerCopies,
+  insertAt,
   normalizeHex,
-  sanitize,
+  readHandles,
+  steps,
   toCss,
+  type Curve,
+  type CurvePoint,
+  type Light,
   type ShadowBlendMode,
   type ShadowParams,
 } from './shadow';
 
-type NumericKey = 'elevation' | 'distance' | 'softness' | 'angle' | 'layers' | 'spacing';
+type NumericKey = 'elevation' | 'layers';
 type OpacityKey = 'startOpacity' | 'endOpacity';
 type ColorKey = 'startColor' | 'endColor';
 
@@ -29,41 +40,39 @@ interface Spec {
 }
 
 const SPECS: Record<NumericKey, Spec> = {
+  // Labelled by its row, so the field has no label of its own.
   elevation: {
-    label: 'Elevation',
-    hint: 'How far from the object the shadow starts, in px. 0 rests on the surface, with a tight contact shadow.',
+    label: '',
+    hint: "How far the object floats: the gap before the shadow starts, in px. It's the object's, so every light shares it. 0 rests on the surface, with a tight contact shadow.",
     unit: 'px', step: 1, snap: 10, perPx: 1, digits: 0,
-  },
-  distance: {
-    label: 'Distance',
-    hint: 'How far the shadow reaches beyond the elevation gap, in px.',
-    unit: 'px', step: 1, snap: 10, perPx: 1, digits: 0,
-  },
-  softness: {
-    label: 'Softness',
-    hint: 'Blur of the farthest copy, in px. Closer copies are sharper, in step with their offset.',
-    unit: 'px', step: 1, snap: 10, perPx: 1, digits: 0,
-  },
-  angle: {
-    label: 'Direction',
-    hint: 'Where the shadow falls. 90° is straight down. Drag the dial to aim it.',
-    unit: '°', step: 1, snap: 15, perPx: 1, digits: 0,
   },
   layers: {
     label: 'Count',
-    hint: 'How many drop shadows build this shadow. 1 is one solid shadow.',
-    unit: '', step: 1, snap: 1, perPx: 1 / 8, digits: 0,
-  },
-  // Dragged on a log scale, so 0.5× and 2× sit equally far from even.
-  spacing: {
-    label: 'Spacing',
-    hint: 'Each gap between copies is this many times the one before. 1× is even; above 1× the gaps widen towards the far end, below 1× towards the object.',
-    unit: '×', step: 0.05, snap: 0.25, perPx: 0, digits: 2,
-    drag: (start, dx) => start * 2 ** (dx / 100),
+    hint: 'How many copies build this shadow, per light, up to 32. 1 is one solid shadow. Past 8 copies on a layer, Figma needs a shadow layer for them.',
+    unit: '', step: 1, snap: 4, perPx: 1 / 6, digits: 0,
   },
 };
 
 const OPACITY: Spec = { label: '', hint: '', unit: '%', step: 1, snap: 10, perPx: 0.5, digits: 0 };
+
+// A light's settings sit in a row under column heads, so their fields have no labels.
+const DIRECTION: Spec = {
+  label: '',
+  hint: 'Where the shadow falls, away from this light. 90° is straight down. Drag the dial, or the light on the preview.',
+  unit: '°', step: 1, snap: 15, perPx: 1, digits: 0,
+};
+
+const DISTANCE: Spec = {
+  label: '',
+  hint: "How far this light casts the shadow beyond the elevation gap, in px. On the preview, the further a light sits from the card's center, the longer its shadow.",
+  unit: 'px', step: 1, snap: 10, perPx: 1, digits: 0,
+};
+
+const SOFTNESS: Spec = {
+  label: '',
+  hint: "Blur of this light's copies where the shadow starts (Start) and at its far end (End), in px. The Blur curve runs between them.",
+  unit: 'px', step: 1, snap: 10, perPx: 1, digits: 0,
+};
 
 // Chromium has no plus-darker, so the preview shows Plus darker as multiply.
 const CSS_BLEND: Record<ShadowBlendMode, string> = {
@@ -89,7 +98,8 @@ const CSS_BLEND: Record<ShadowBlendMode, string> = {
 
 let shadows: ShadowParams[] = [{ ...DEFAULTS }];
 let active = 0; // the shadow the controls edit
-let selection: SelectionState = { total: 0, capable: 0, managed: 0, shadows: null, replaces: 0, styled: 0, mergeBlocker: null };
+let clipboard: ShadowParams[] = []; // copied shadows, kept by the plugin across files
+let selection: SelectionState = { total: 0, capable: 0, managed: 0, shadows: null, replaces: 0, styled: 0, groupBlocker: null };
 let dragging = false;
 
 const current = () => shadows[active];
@@ -110,10 +120,11 @@ function remember() {
   rememberTimer = setTimeout(() => send({ type: 'remember', shadows }), 400);
 }
 
-/** Applies an edit to the active shadow locally, and live to the selection's. Drags stream at
- *  frame rate; `commit` closes one undo step (slider released, value typed). */
+/** Applies an edit to the active shadow locally (and to the shadows linked to it), and live to
+ *  the selection's. Drags stream at frame rate; `commit` closes one undo step (drag released,
+ *  value typed). */
 function set(patch: Partial<ShadowParams>, commit: boolean) {
-  shadows[active] = sanitize({ ...current(), ...patch });
+  shadows = applyPatch(shadows, active, patch);
   const clean: Partial<ShadowParams> = {};
   for (const key of Object.keys(patch) as (keyof ShadowParams)[]) {
     (clean as Record<string, unknown>)[key] = current()[key];
@@ -155,10 +166,19 @@ function select(index: number) {
 function insertShadow() {
   if (shadows.length >= MAX_SHADOWS) return;
   settle();
-  const params = { ...current() };
-  shadows.splice(active + 1, 0, params);
+  const params = { ...current(), visible: true };
+  shadows = insertAt(shadows, active + 1, params);
   active++;
   if (selection.managed) send({ type: 'insert', index: active, params });
+  remember();
+  render();
+}
+
+/** Shows or hides a shadow: hidden, it keeps its settings but isn't drawn. */
+function toggleShadow(index: number) {
+  settle();
+  shadows = applyPatch(shadows, index, { visible: !shadows[index].visible });
+  if (selection.managed) send({ type: 'update', index, patch: { visible: shadows[index].visible }, commit: true });
   remember();
   render();
 }
@@ -176,28 +196,40 @@ function deleteShadow(index: number) {
 // --- Controls --------------------------------------------------------------------------
 
 interface NumberControl {
+  field: HTMLElement;
   input: HTMLInputElement;
   spec: Spec;
-  get(): number;
+  get(): number | null;
   off?(): boolean;
+}
+
+interface FieldOptions {
+  off?(): boolean; // greyed out
+  lead?: string; // markup before the label
+  trail?: string; // markup after the unit
+  auto?(): number; // the field can be Auto (null); drags and arrows start from this
 }
 
 const numbers: NumberControl[] = [];
 const roundTo = (value: number, step: number) => Math.round(value / step) * step;
+const format = (value: number | null, spec: Spec) => (value === null ? 'Auto' : value.toFixed(spec.digits));
 
 /** A number field: type a value, nudge it with the arrow keys (Shift for 10 steps), or drag
  *  sideways anywhere on the field (Shift snaps). A click without a drag starts typing. */
-function numberField(field: HTMLElement, spec: Spec, name: string, get: () => number, put: (value: number, commit: boolean) => void, off?: () => boolean, lead = '') {
+function numberField(field: HTMLElement, spec: Spec, name: string, get: () => number | null, put: (value: number | null, commit: boolean) => void, options: FieldOptions = {}) {
   const shift = spec.snap !== spec.step ? ` Drag sideways to change it, Shift for steps of ${spec.snap}${spec.unit}.` : ' Drag sideways to change it.';
   field.title = spec.hint ? spec.hint + shift : shift.trim();
-  field.innerHTML = `${lead}${spec.label ? `<span class="label">${spec.label}</span>` : ''}<input type="text" inputmode="decimal" aria-label="${name}"><span class="unit">${spec.unit}</span>`;
+  field.innerHTML = `${options.lead ?? ''}${spec.label ? `<span class="label">${spec.label}</span>` : ''}<input type="text" inputmode="decimal" aria-label="${name}"><span class="unit">${spec.unit}</span>${options.trail ?? ''}`;
   const input = field.querySelector('input')!;
-  numbers.push({ input, spec, get, off });
+  numbers.push({ field, input, spec, get, off: options.off });
+  const value = () => get() ?? options.auto?.() ?? 0;
 
   input.addEventListener('focus', () => input.select());
   input.addEventListener('change', () => {
-    const value = parseFloat(input.value);
-    if (Number.isFinite(value)) put(value, true);
+    const text = input.value.trim();
+    const number = parseFloat(text);
+    if (options.auto && (text === '' || /^a/i.test(text))) put(null, true);
+    else if (Number.isFinite(number)) put(number, true);
     else render();
   });
   input.addEventListener('keydown', (event) => {
@@ -205,8 +237,8 @@ function numberField(field: HTMLElement, spec: Spec, name: string, get: () => nu
     if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
     event.preventDefault();
     const delta = spec.step * (event.shiftKey ? 10 : 1) * (event.key === 'ArrowUp' ? 1 : -1);
-    put(roundTo(get() + delta, spec.step), true);
-    input.value = get().toFixed(spec.digits); // render() leaves the focused field alone
+    put(roundTo(value() + delta, spec.step), true);
+    input.value = format(get(), spec); // render() leaves the focused field alone
     input.select();
   });
 
@@ -214,7 +246,7 @@ function numberField(field: HTMLElement, spec: Spec, name: string, get: () => nu
   field.addEventListener('pointerdown', (event) => {
     if (document.activeElement === input || (event.target as HTMLElement).closest('.dial')) return;
     event.preventDefault();
-    start = { x: event.clientX, value: get(), moved: false };
+    start = { x: event.clientX, value: value(), moved: false };
     dragging = true;
     try {
       field.setPointerCapture(event.pointerId); // keeps the drag going outside the field
@@ -231,7 +263,7 @@ function numberField(field: HTMLElement, spec: Spec, name: string, get: () => nu
     put(roundTo(raw, event.shiftKey ? spec.snap : spec.step), false);
   });
   field.addEventListener('pointerup', () => {
-    if (start?.moved) put(get(), true);
+    if (start?.moved) put(value(), true);
     else if (start) input.focus();
     start = null;
   });
@@ -241,8 +273,91 @@ function numberField(field: HTMLElement, spec: Spec, name: string, get: () => nu
 document.querySelectorAll<HTMLElement>('[data-num]').forEach((field) => {
   const key = field.dataset.num as NumericKey;
   const spec = SPECS[key];
-  const dial = key === 'angle' ? '<span class="dial" id="dial"><span class="needle"></span></span>' : '';
-  numberField(field, spec, spec.label, () => current()[key], (value, commit) => set({ [key]: value }, commit), undefined, dial);
+  numberField(field, spec, field.dataset.name ?? spec.label, () => current()[key], (value, commit) => set({ [key]: value ?? 0 }, commit));
+});
+
+// One row per light: direction (with a dial) and distance; each light's start and end softness
+// sit under Opacity. Lights past the first can be removed. They also sit on the preview, where they
+// can be dragged (see "Lights on the stage").
+const SUN = '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><circle cx="5" cy="5" r="1.8"/><path d="M5 .7v1.1M5 8.2v1.1M.7 5h1.1M8.2 5h1.1M2 2l.8.8M7.2 7.2l.8.8M2 8l.8-.8M7.2 2.8l.8-.8"/></svg>';
+/** A light's badge, on the preview and beside its row: a sun, numbered once there are several. */
+const badge = (i: number, count: number) => (count > 1 ? String(i + 1) : SUN);
+
+$('lights').innerHTML = Array.from(
+  { length: MAX_LIGHTS },
+  (_, i) => `
+  <div class="light-row" data-light="${i}">
+    <span class="marker"></span>
+    <div class="field num scrub" data-part="angle"></div>
+    <div class="field num scrub" data-part="distance"></div>
+    <button class="remove" title="Remove this light" aria-label="Remove light ${i + 1}">×</button>
+  </div>`,
+).join('');
+const lightRows = Array.from($('lights').querySelectorAll<HTMLElement>('.light-row'));
+const dials: HTMLElement[] = [];
+
+function setLight(i: number, patch: Partial<Light>, commit: boolean) {
+  set({ lights: current().lights.map((l, k) => (k === i ? { ...l, ...patch } : l)) }, commit);
+}
+
+lightRows.forEach((row, i) => {
+  const field = (key: keyof Light, spec: Spec, name: string, options?: FieldOptions) =>
+    numberField(row.querySelector<HTMLElement>(`[data-part="${key}"]`)!, spec, `Light ${i + 1} ${name}`, () => current().lights[i]?.[key] ?? 0, (value, commit) => setLight(i, { [key]: value ?? 0 }, commit), options);
+  field('angle', DIRECTION, 'direction', { lead: '<span class="dial"><span class="needle"></span></span>' });
+  field('distance', DISTANCE, 'distance');
+
+  const dial = row.querySelector<HTMLElement>('.dial')!;
+  dials.push(dial);
+  const aim = (event: PointerEvent, commit: boolean) => {
+    const box = dial.getBoundingClientRect();
+    const deg = (Math.atan2(event.clientY - box.top - box.height / 2, event.clientX - box.left - box.width / 2) * 180) / Math.PI;
+    setLight(i, { angle: event.shiftKey ? Math.round(deg / 15) * 15 : Math.round(deg) }, commit);
+  };
+  // Drag the dial to aim the light, Shift snaps to 15°.
+  dial.addEventListener('pointerdown', (event) => {
+    dragging = true;
+    try {
+      dial.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+    aim(event, false);
+  });
+  dial.addEventListener('pointermove', (event) => {
+    if (dial.hasPointerCapture(event.pointerId)) aim(event, false);
+  });
+  dial.addEventListener('pointerup', (event) => aim(event, true));
+  row.querySelector('.remove')!.addEventListener('click', () => {
+    const { lights } = current();
+    if (lights.length > 1) set({ lights: lights.filter((_, k) => k !== i) }, true);
+  });
+});
+
+// Each light's softness, start and end, in a row of its own under Opacity.
+$('softness').innerHTML = Array.from(
+  { length: MAX_LIGHTS },
+  (_, i) => `
+  <div class="pair" data-light="${i}">
+    <div class="pair-label"><label title="${SOFTNESS.hint}">Softness</label><span class="marker mini"></span></div>
+    <div class="field num scrub" data-part="startSoftness"></div>
+    <div class="field num scrub" data-part="endSoftness"></div>
+  </div>`,
+).join('');
+const softnessRows = Array.from($('softness').querySelectorAll<HTMLElement>('.pair'));
+softnessRows.forEach((row, i) => {
+  for (const key of ['startSoftness', 'endSoftness'] as const) {
+    numberField(row.querySelector<HTMLElement>(`[data-part="${key}"]`)!, SOFTNESS, `Light ${i + 1} ${key === 'startSoftness' ? 'start' : 'end'} softness`, () => current().lights[i]?.[key] ?? 0, (value, commit) => setLight(i, { [key]: value ?? 0 }, commit), {
+      off: key === 'startSoftness' ? () => current().layers === 1 : undefined,
+    });
+  }
+});
+
+$('link').addEventListener('click', () => set({ linked: !current().linked }, true));
+
+const kind = $('kind');
+kind.addEventListener('click', (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLElement>('[data-kind]');
+  if (button) set({ inner: button.dataset.kind === 'inner' }, true);
 });
 
 document.querySelectorAll<HTMLElement>('[data-opacity]').forEach((field) => {
@@ -252,8 +367,8 @@ document.querySelectorAll<HTMLElement>('[data-opacity]').forEach((field) => {
     OPACITY,
     key === 'startOpacity' ? 'Start opacity' : 'End opacity',
     () => current()[key] * 100,
-    (value, commit) => set({ [key]: value / 100 }, commit),
-    key === 'endOpacity' ? () => current().layers === 1 : undefined,
+    (value, commit) => set({ [key]: (value ?? 0) / 100 }, commit),
+    { off: key === 'endOpacity' ? () => current().layers === 1 : undefined },
   );
 });
 
@@ -267,58 +382,63 @@ function buildColor(field: HTMLElement) {
   const hex = field.querySelector<HTMLInputElement>('input[type="text"]')!;
   colorFields.set(key, { field, picker, swatch: field.querySelector('.swatch')!, hex });
 
-  picker.addEventListener('input', () => set({ [key]: picker.value }, false));
-  picker.addEventListener('change', () => set({ [key]: picker.value }, true));
+  picker.addEventListener('input', () => setColor(key, picker.value, false));
+  picker.addEventListener('change', () => setColor(key, picker.value, true));
   hex.addEventListener('focus', () => hex.select());
   hex.addEventListener('keydown', (event) => event.key === 'Enter' && hex.blur());
   hex.addEventListener('change', () => {
     const value = normalizeHex(hex.value);
-    if (value) set({ [key]: value }, true);
+    if (value) setColor(key, value, true);
     else render();
   });
 }
 
-document.querySelectorAll<HTMLElement>('[data-color]').forEach(buildColor);
-
-// Direction dial: drag to aim the shadow, Shift snaps to 15°.
-const dial = $<HTMLSpanElement>('dial');
-function aim(event: PointerEvent, commit: boolean) {
-  const box = dial.getBoundingClientRect();
-  const deg = (Math.atan2(event.clientY - box.top - box.height / 2, event.clientX - box.left - box.width / 2) * 180) / Math.PI;
-  const angle = event.shiftKey ? Math.round(deg / 15) * 15 : Math.round(deg);
-  set({ angle }, commit);
+/** Linked, start and end are one color, whichever field sets it. */
+function setColor(key: ColorKey, value: string, commit: boolean) {
+  set(current().colorLinked ? { startColor: value, endColor: value } : { [key]: value }, commit);
 }
-dial.addEventListener('pointerdown', (event) => {
-  dragging = true;
-  try {
-    dial.setPointerCapture(event.pointerId);
-  } catch {
-    // ignore
-  }
-  aim(event, false);
+
+document.querySelectorAll<HTMLElement>('[data-color]').forEach(buildColor);
+$('link-colors').addEventListener('click', () => {
+  const { colorLinked, startColor } = current();
+  set(colorLinked ? { colorLinked: false } : { colorLinked: true, endColor: startColor }, true);
 });
-dial.addEventListener('pointermove', (event) => {
-  if (dial.hasPointerCapture(event.pointerId)) aim(event, false);
-});
-dial.addEventListener('pointerup', (event) => aim(event, true));
+
 window.addEventListener('pointerup', () => (dragging = false));
 
 const blend = $<HTMLSelectElement>('blend');
 blend.innerHTML = BLEND_MODES.map(([mode, name]) => `<option value="${mode}">${name}</option>`).join('');
 blend.addEventListener('change', () => set({ blendMode: blend.value as ShadowBlendMode }, true));
 
-const merge = $<HTMLInputElement>('merge');
-merge.addEventListener('change', () => set({ merge: merge.checked }, true));
-
 $('add-shadow').addEventListener('click', insertShadow);
 $('shadows').addEventListener('click', (event) => {
   const target = event.target as HTMLElement;
   const remove = target.closest<HTMLElement>('[data-remove]');
+  const toggle = target.closest<HTMLElement>('[data-toggle]');
   if (remove) deleteShadow(Number(remove.dataset.remove));
+  else if (toggle) toggleShadow(Number(toggle.dataset.toggle));
   else {
     const row = target.closest<HTMLElement>('.shadow-row');
     if (row) select(Number(row.dataset.index));
   }
+});
+
+// Copy keeps the panel's shadows; Paste puts them on every selected layer, replacing what's there,
+// or into the panel when nothing is selected, ready for Add.
+$('copy').addEventListener('click', () => {
+  settle();
+  clipboard = shadows.map((s) => ({ ...s, lights: s.lights.map((l) => ({ ...l })) }));
+  send({ type: 'copy', shadows: clipboard });
+  render();
+});
+$('paste').addEventListener('click', () => {
+  if (!clipboard.length) return;
+  settle();
+  shadows = clipboard.map((s) => ({ ...s, lights: s.lights.map((l) => ({ ...l })) }));
+  active = 0;
+  if (selection.capable) send({ type: 'paste', shadows });
+  remember();
+  render();
 });
 
 $('primary').addEventListener('click', () => {
@@ -328,72 +448,398 @@ $('primary').addEventListener('click', () => {
 });
 $('more').addEventListener('click', () => send({ type: 'add', shadows }));
 
+// --- Curves ------------------------------------------------------------------------------
+//
+// One canvas shows the ramp the select picks, each a cubic Bézier through four points: its start
+// and end, in the unit square (the lighter area), and two handles, which may reach past it on every
+// side. Before the start and after the end the curve runs flat. A handle past the far end, or
+// behind its own, is drawn where it was put but read along its line (`readHandles`), so the curve
+// shown is the curve applied. Dots mark the copies (see CURVES for what each ramp's axes mean).
+//
+// A press near a point grabs it, and the drag follows the pointer from there; an end takes its
+// handle along. Shift lays a handle flat or upright from its end, and snaps an end to tenths. A
+// double-click on a handle straightens the curve between its ends; on an end, it puts that end
+// back in its corner.
+
+type CurveKey = 'distanceCurve' | 'blurCurve' | 'opacityCurve' | 'colorCurve';
+
+const CURVES: Record<CurveKey, { across: string; hint: string; x: (copy: number, p: ShadowParams, offset: number) => number }> = {
+  distanceCurve: {
+    across: 'by copy',
+    hint: 'Where the copies sit. Across: copy 1 to the last. Up: their share of the distance.',
+    x: (k, p) => (k + 1) / p.layers,
+  },
+  blurCurve: {
+    across: 'by distance',
+    hint: 'How soft the copies get. Across: how far a copy sits, from the object to the far end. Up: how far it is from start to end softness.',
+    x: (k, p, offset) => {
+      const reach = p.elevation + p.lights[0].distance;
+      return reach > 0 ? offset / reach : (k + 1) / p.layers;
+    },
+  },
+  opacityCurve: {
+    across: 'by copy',
+    hint: 'How strength runs from Start to End. Across: the nearest copy to the farthest. Up: how far it is from start to end opacity.',
+    x: (k, p) => steps(p.layers)[k],
+  },
+  colorCurve: {
+    across: 'by copy',
+    hint: 'How color runs from Start to End. Across: the nearest copy to the farthest. Up: how far it is from start to end color.',
+    x: (k, p) => steps(p.layers)[k],
+  },
+};
+const CURVE_HANDLING = ' Drag a point to bend the curve; an end takes its handle along. Shift lays a handle flat or upright, and snaps an end to tenths. Double-click a handle to straighten the curve, an end to put it back in its corner.';
+const CURVE_PAD = 8; // px around the area the points can reach
+const CURVE_GRAB = 14; // px from a point that a press still grabs it
+const MIN_SPAN = 0.05; // the end stays at least this far right of the start
+const CORNER: Record<0 | 3, CurvePoint> = { 0: [0, 0], 3: [1, 1] };
+const clampTo = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+const hundredths = (v: number) => Math.round(v * 100) / 100;
+
+/** The same ends, with the handles at thirds of the straight line between them. */
+function straighten([a, , , d]: Curve): Curve {
+  const at = (t: number): CurvePoint => [a[0] + (d[0] - a[0]) * t, a[1] + (d[1] - a[1]) * t];
+  return [a, at(1 / 3), at(2 / 3), d];
+}
+
+/** Curve units to px in an editor and back: from −reach to 1 + reach each way, y upwards. */
+function curveFrame(svg: SVGSVGElement) {
+  const w = (svg.clientWidth || 280) - 2 * CURVE_PAD;
+  const h = (svg.clientHeight || 148) - 2 * CURVE_PAD;
+  const [across, up] = [1 + 2 * CURVE_REACH_X, 1 + 2 * CURVE_REACH_Y];
+  return {
+    X: (x: number) => CURVE_PAD + ((x + CURVE_REACH_X) / across) * w,
+    Y: (y: number) => CURVE_PAD + ((1 + CURVE_REACH_Y - y) / up) * h,
+    x: (px: number) => ((px - CURVE_PAD) / w) * across - CURVE_REACH_X,
+    y: (py: number) => 1 + CURVE_REACH_Y - ((py - CURVE_PAD) / h) * up,
+  };
+}
+
+interface CurveEditor {
+  key: CurveKey;
+  svg: SVGSVGElement;
+  hot: number | null; // the point under the pointer or held, drawn larger
+}
+
+const curves: CurveEditor[] = Array.from(document.querySelectorAll<SVGSVGElement>('svg.curve-canvas'), (svg) => {
+  const editor: CurveEditor = { key: 'distanceCurve', svg, hot: null };
+  const local = (event: MouseEvent) => {
+    const box = svg.getBoundingClientRect();
+    return { px: event.clientX - box.left, py: event.clientY - box.top };
+  };
+  /** The point within reach of the pointer, the nearest if several, or null. */
+  const pick = (event: MouseEvent): 0 | 1 | 2 | 3 | null => {
+    const f = curveFrame(svg);
+    const { px, py } = local(event);
+    let best: number | null = null;
+    let least = CURVE_GRAB;
+    current()[editor.key].forEach(([x, y], k) => {
+      const away = Math.hypot(f.X(x) - px, f.Y(y) - py);
+      if (away <= least) {
+        least = away;
+        best = k;
+      }
+    });
+    return best as 0 | 1 | 2 | 3 | null;
+  };
+  const heat = (k: number | null) => {
+    svg.classList.toggle('near', k !== null);
+    if (editor.hot === k) return;
+    editor.hot = k;
+    renderCurves(current());
+  };
+
+  let grab: { index: 0 | 1 | 2 | 3; px: number; py: number; curve: Curve; moved: boolean } | null = null;
+  svg.addEventListener('pointerdown', (event) => {
+    const index = pick(event);
+    if (index === null) return;
+    grab = { index, ...local(event), curve: current()[editor.key], moved: false };
+    dragging = true;
+    svg.classList.add('held');
+    heat(index);
+    try {
+      svg.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+  });
+  svg.addEventListener('pointermove', (event) => {
+    if (!grab) return heat(pick(event));
+    const f = curveFrame(svg);
+    const { px, py } = local(event);
+    const c = grab.curve.map((point) => [...point]) as Curve;
+    const [ox, oy] = c[grab.index];
+    let x = ox + f.x(px) - f.x(grab.px);
+    let y = oy + f.y(py) - f.y(grab.py);
+    if (grab.index === 0 || grab.index === 3) {
+      if (event.shiftKey) [x, y] = [Math.round(x * 10) / 10, Math.round(y * 10) / 10];
+      x = grab.index === 0 ? clampTo(x, 0, c[3][0] - MIN_SPAN) : clampTo(x, c[0][0] + MIN_SPAN, 1);
+      y = clampTo(y, 0, 1);
+      const h = grab.index === 0 ? 1 : 2;
+      c[h] = [hundredths(clampTo(c[h][0] + x - ox, -CURVE_REACH_X, 1 + CURVE_REACH_X)), hundredths(clampTo(c[h][1] + y - oy, -CURVE_REACH_Y, 1 + CURVE_REACH_Y))];
+    } else {
+      x = clampTo(x, -CURVE_REACH_X, 1 + CURVE_REACH_X);
+      y = clampTo(y, -CURVE_REACH_Y, 1 + CURVE_REACH_Y);
+      if (event.shiftKey) {
+        // Flat or upright from its end, whichever the handle is nearer on screen.
+        const [ex, ey] = c[grab.index === 1 ? 0 : 3];
+        if (Math.abs(f.X(x) - f.X(ex)) >= Math.abs(f.Y(y) - f.Y(ey))) y = ey;
+        else x = ex;
+      }
+    }
+    c[grab.index] = [hundredths(x), hundredths(y)];
+    grab.moved = true;
+    set({ [editor.key]: c }, false);
+  });
+  const release = () => {
+    if (grab?.moved) set({ [editor.key]: current()[editor.key] }, true); // closes the drag's undo step
+    grab = null;
+    svg.classList.remove('held');
+  };
+  svg.addEventListener('pointerup', release);
+  svg.addEventListener('pointercancel', release);
+  svg.addEventListener('pointerleave', () => !grab && heat(null));
+  svg.addEventListener('dblclick', (event) => {
+    const index = pick(event);
+    if (index === null) return;
+    const c = current()[editor.key];
+    if (index === 1 || index === 2) set({ [editor.key]: straighten(c) }, true);
+    else set({ [editor.key]: c.map((point, k) => (k === index ? CORNER[index] : point)) as Curve }, true);
+  });
+  return editor;
+});
+
+const curvePick = $<HTMLSelectElement>('curve-pick');
+curvePick.addEventListener('change', () => {
+  for (const editor of curves) Object.assign(editor, { key: curvePick.value as CurveKey, hot: null });
+  render();
+});
+
+function renderCurves(p: ShadowParams) {
+  const first = computeCopies(p).filter((c) => c.light === 0);
+  for (const { key, svg, hot } of curves) {
+    const f = curveFrame(svg);
+    const X = (x: number) => f.X(x).toFixed(1);
+    const Y = (y: number) => f.Y(y).toFixed(1);
+    const points = p[key];
+    const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = points;
+    const [, [cx1, cy1], [cx2, cy2]] = readHandles(points); // the curve as it's applied
+    const dots = first.map((c, k) => {
+      const x = CURVES[key].x(k, p, c.offset);
+      return `<circle class="dot" cx="${X(x)}" cy="${Y(ease(points, x))}" r="2.4" fill="${c.color}"/>`;
+    });
+    const point = ([x, y]: CurvePoint, k: number) =>
+      `<circle class="${k === hot ? 'hot' : k === 0 || k === 3 ? 'end-point' : 'handle-point'}" cx="${X(x)}" cy="${Y(y)}" r="${k === hot ? 5.5 : 4.5}"/>`;
+    // What runs across, in the room above the square, under everything else.
+    const caption = `<text class="caption sub" x="${(svg.clientWidth || 280) - CURVE_PAD - 1}" y="12" text-anchor="end">${CURVES[key].across}</text>`;
+    svg.parentElement!.title = CURVES[key].hint + CURVE_HANDLING;
+    svg.innerHTML =
+      caption +
+      `<rect class="square" x="${X(0)}" y="${Y(1)}" width="${(f.X(1) - f.X(0)).toFixed(1)}" height="${(f.Y(0) - f.Y(1)).toFixed(1)}" rx="2"/>` +
+      `<line class="diagonal" x1="${X(0)}" y1="${Y(0)}" x2="${X(1)}" y2="${Y(1)}"/>` +
+      `<line class="arm" x1="${X(x0)}" y1="${Y(y0)}" x2="${X(x1)}" y2="${Y(y1)}"/>` +
+      `<line class="arm" x1="${X(x3)}" y1="${Y(y3)}" x2="${X(x2)}" y2="${Y(y2)}"/>` +
+      `<path class="curve" d="M ${X(0)} ${Y(y0)} L ${X(x0)} ${Y(y0)} C ${X(cx1)} ${Y(cy1)} ${X(cx2)} ${Y(cy2)} ${X(x3)} ${Y(y3)} L ${X(1)} ${Y(y3)}"/>` +
+      dots.join('') +
+      points.map(point).join('');
+  }
+}
+
+// --- Lights on the stage -------------------------------------------------------------
+//
+// The selected shadow's light sits on the preview, opposite its shadow, and may sit over the card.
+// Its distance from the card's center sets the shadow's, the same in every direction: 0 px at the
+// center, 1000 px on a circle as high as the stage, on a log scale so short shadows get room too.
+// Drag the light to move it; Shift snaps its direction to 15°, Alt moves it slower.
+
+const LIGHT_MARGIN = 10; // px a light keeps from the stage's edge
+const KNEE = 10; // px; below it the scale is close to even
+const FARTHEST = 1000; // px, at the stage's edge
+
+const stage = $('stage');
+
+/** How far a light can go from the center, in px: the radius of the circle where 1000 px sits. */
+const span = () => Math.min(stage.clientWidth, stage.clientHeight) / 2 - LIGHT_MARGIN;
+
+/** Where a light sits, from the stage's center. */
+function lightPoint({ angle, distance }: Light) {
+  const rad = ((angle + 180) * Math.PI) / 180;
+  const r = (Math.log(1 + distance / KNEE) / Math.log(1 + FARTHEST / KNEE)) * span();
+  return { x: Math.cos(rad) * r, y: Math.sin(rad) * r };
+}
+
+/** The light at a point from the stage's center, clamped to the circle. At the center it keeps
+ *  its direction. */
+function lightAt(x: number, y: number, snap: boolean): Partial<Light> {
+  const u = Math.min(1, Math.hypot(x, y) / span());
+  const distance = Math.round(KNEE * ((1 + FARTHEST / KNEE) ** u - 1));
+  if (Math.hypot(x, y) < 1) return { distance };
+  const deg = (Math.atan2(y, x) * 180) / Math.PI + 180;
+  return { angle: (snap ? Math.round(deg / 15) * 15 : Math.round(deg)) % 360, distance };
+}
+
+// Kept across renders, so a drag holds on to its handle.
+const handles = Array.from({ length: MAX_LIGHTS }, (_, i) => {
+  const handle = document.createElement('div');
+  handle.className = 'handle';
+  $('handles').appendChild(handle);
+  // The drag follows the pointer's movement, not its position, so grabbing a handle off-center
+  // doesn't make it jump; Alt re-anchors it at a quarter of the speed.
+  let drag: { x: number; y: number; from: { x: number; y: number }; slow: boolean; moved: boolean } | null = null;
+  const point = (event: PointerEvent) => {
+    const scale = drag!.slow ? 0.25 : 1;
+    return { x: drag!.from.x + (event.clientX - drag!.x) * scale, y: drag!.from.y + (event.clientY - drag!.y) * scale };
+  };
+  handle.addEventListener('pointerdown', (event) => {
+    const light = current().lights[i];
+    if (!light) return;
+    event.preventDefault();
+    drag = { x: event.clientX, y: event.clientY, from: lightPoint(light), slow: event.altKey, moved: false };
+    dragging = true;
+    handle.classList.add('held');
+    try {
+      handle.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+  });
+  handle.addEventListener('pointermove', (event) => {
+    if (!drag) return;
+    if (event.altKey !== drag.slow) drag = { ...drag, x: event.clientX, y: event.clientY, from: point(event), slow: event.altKey };
+    let { x, y } = point(event);
+    // Past the circle the light stays on it, and comes back as soon as the pointer turns.
+    const out = Math.hypot(x, y) / span();
+    if (out > 1) {
+      x /= out;
+      y /= out;
+      drag = { ...drag, x: event.clientX, y: event.clientY, from: { x, y } };
+    }
+    drag.moved = true;
+    setLight(i, lightAt(x, y, event.shiftKey), false);
+  });
+  const release = () => {
+    if (drag?.moved) setLight(i, {}, true); // closes the drag's undo step
+    drag = null;
+    handle.classList.remove('held');
+  };
+  handle.addEventListener('pointerup', release);
+  handle.addEventListener('pointercancel', release);
+  return handle;
+});
+
+function renderLights(p: ShadowParams) {
+  const cx = stage.clientWidth / 2;
+  const cy = stage.clientHeight / 2;
+  let rays = '';
+  handles.forEach((handle, i) => {
+    const light = p.lights[i];
+    handle.hidden = !light;
+    if (!light) return;
+    const { x, y } = lightPoint(light);
+    handle.style.left = `${cx + x}px`;
+    handle.style.top = `${cy + y}px`;
+    const mark = badge(i, p.lights.length);
+    if (handle.dataset.mark !== mark) {
+      handle.dataset.mark = mark;
+      handle.innerHTML = mark;
+    }
+    handle.title = `${p.lights.length > 1 ? `Light ${i + 1}` : 'The light'}: drag it to move it. The further from the card's center, the longer the shadow. Shift snaps the direction to 15°, Alt moves it slower.`;
+    rays += `<line x1="${cx}" y1="${cy}" x2="${cx + x}" y2="${cy + y}"/>`;
+  });
+  $('rays').innerHTML = rays;
+}
+
 // --- Render ----------------------------------------------------------------------------
 
 function plural(n: number, word: string) {
   return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
 
-const previews: HTMLDivElement[] = [];
+function shadowElement(p: ShadowParams): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'shadow';
+  el.style.boxShadow = toCss(p);
+  el.style.mixBlendMode = CSS_BLEND[p.blendMode];
+  return el;
+}
 
-/** One element per shadow under the card. Like in Figma, shadows left as effects draw above
- *  the merged layers, and within each kind the first shadow draws on top. */
+/** Like in Figma: drop shadows, the card, then inner shadows on it; within each, the first shadow
+ *  draws on top. */
 function renderPreview() {
-  const stage = $('stage');
-  const card = stage.querySelector('.card')!;
-  while (previews.length < shadows.length) previews.push(document.createElement('div'));
-  previews.splice(shadows.length).forEach((el) => el.remove());
-  const order = [...shadows.keys()].reverse().sort((a, b) => Number(shadows[b].merge) - Number(shadows[a].merge));
-  order.forEach((index, i) => {
-    const params = shadows[index];
-    const el = previews[i];
-    el.className = 'shadow';
-    el.style.boxShadow = toCss(params);
-    el.style.mixBlendMode = CSS_BLEND[params.blendMode];
-    el.style.opacity = String(computeCopies(params).opacity);
-    stage.insertBefore(el, card);
-  });
+  const order = [...shadows.keys()].reverse().filter((i) => shadows[i].visible);
+  $('under').replaceChildren(...order.filter((i) => !shadows[i].inner).map((i) => shadowElement(shadows[i])));
+  $('over').replaceChildren(...order.filter((i) => shadows[i].inner).map((i) => shadowElement(shadows[i])));
+}
+
+const EYE = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1.5 7S3.5 3.2 7 3.2 12.5 7 12.5 7 10.5 10.8 7 10.8 1.5 7 1.5 7z"/><circle cx="7" cy="7" r="1.7"/></svg>';
+const EYE_CLOSED = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M1.8 6.2S3.7 9 7 9s5.2-2.8 5.2-2.8M3.6 8.1l-1 1.3M7 9v1.6M10.4 8.1l1 1.3"/></svg>';
+const LINK = '<svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 8a2.5 2.5 0 0 0 3.5 0l2-2A2.5 2.5 0 0 0 8 2.5l-.7.7"/><path d="M8 6a2.5 2.5 0 0 0-3.5 0l-2 2A2.5 2.5 0 0 0 6 11.5l.7-.7"/></svg>';
+
+function describe(s: ShadowParams): string {
+  const parts = [`${s.layers}×`, `${Math.round(s.elevation + Math.max(...s.lights.map((l) => l.distance)))} px`];
+  if (s.lights.length > 1) parts.push(`${s.lights.length} lights`);
+  if (s.inner) parts.push('inner');
+  return parts.join(' · ');
 }
 
 function renderList() {
   $('shadows').innerHTML = shadows
     .map(
       (s, i) => `
-      <div class="shadow-row${i === active ? ' active' : ''}" data-index="${i}">
+      <div class="shadow-row${i === active ? ' active' : ''}${s.visible ? '' : ' hidden'}" data-index="${i}">
         <span class="chip" style="background: linear-gradient(135deg, ${s.startColor}, ${s.endColor})"></span>
         <span class="name">Shadow ${i + 1}</span>
-        <span class="meta">${s.layers}× · ${Math.round(s.elevation + s.distance)} px${s.merge ? ' · merged' : ''}</span>
+        ${s.linked && shadows.filter((x) => x.linked).length > 1 ? `<span class="linked" title="Shares its light with the other linked shadows">${LINK}</span>` : ''}
+        <span class="meta">${describe(s)}</span>
+        <button class="icon eye" data-toggle="${i}" title="${s.visible ? 'Hide this shadow. It keeps its settings.' : 'Show this shadow'}" aria-label="${s.visible ? 'Hide' : 'Show'} shadow ${i + 1}" aria-pressed="${!s.visible}">${s.visible ? EYE : EYE_CLOSED}</button>
         <button class="icon" data-remove="${i}" title="Remove this shadow" aria-label="Remove shadow ${i + 1}"${shadows.length === 1 ? ' disabled' : ''}>−</button>
       </div>`,
     )
     .join('');
   $<HTMLButtonElement>('add-shadow').disabled = shadows.length >= MAX_SHADOWS;
-}
-
-/** Figma keeps 8 drop shadows per layer; the rest go on a layer below, if the object can have one. */
-function effectsNote(): string {
-  const extra = looseCopies(shadows) - MAX_EFFECTS;
-  if (extra <= 0) return '';
-  if (selection.mergeBlocker) {
-    return `Figma keeps ${MAX_EFFECTS} drop shadows per layer and this one can't be grouped with more, so the bottom ${extra === 1 ? 'copy is' : `${extra} copies are`} left out.`;
-  }
-  return `Figma keeps ${MAX_EFFECTS} drop shadows per layer. The other ${extra === 1 ? 'copy goes' : `${extra} copies go`} on a layer below, grouped with the object.`;
-}
-
-function toneNote(p: ShadowParams): string {
-  if (p.layers === 1) return 'One copy: only Start applies.';
-  if (p.startOpacity < p.endOpacity - 0.005) return "Start can't be lighter than End: every copy covers the area next to the object, so it levels out at End.";
-  if (!p.merge && Math.abs(p.startOpacity - p.endOpacity) < 0.005) return 'Even strength as effects is the farthest copy alone. Merge keeps every copy.';
-  return '';
+  const paste = $<HTMLButtonElement>('paste');
+  const copied = clipboard.length === 1 ? 'the copied shadow' : `the ${clipboard.length} copied shadows`;
+  paste.disabled = clipboard.length === 0;
+  paste.title = !clipboard.length
+    ? 'Paste: copy shadows first.'
+    : selection.capable
+      ? `Paste ${copied} onto the selection, replacing its shadows.`
+      : `Paste ${copied} into the panel; Add puts them on a layer.`;
 }
 
 function render() {
   const p = current();
-  for (const { input, spec, get, off } of numbers) {
-    if (document.activeElement !== input) input.value = get().toFixed(spec.digits);
-    input.parentElement!.classList.toggle('off', off?.() ?? false);
+  for (const { field, input, spec, get, off } of numbers) {
+    const value = get();
+    if (document.activeElement !== input) input.value = format(value, spec);
+    field.classList.toggle('off', off?.() ?? false);
+    field.classList.toggle('auto', value === null);
   }
-  dial.querySelector<HTMLElement>('.needle')!.style.transform = `rotate(${p.angle}deg)`;
+  lightRows.forEach((row, i) => {
+    row.hidden = i >= p.lights.length;
+    const marker = row.querySelector<HTMLElement>('.marker')!;
+    const mark = badge(i, p.lights.length);
+    if (marker.dataset.mark !== mark) {
+      marker.dataset.mark = mark;
+      marker.innerHTML = mark;
+    }
+    row.querySelector<HTMLElement>('.remove')!.hidden = p.lights.length === 1;
+    dials[i].querySelector<HTMLElement>('.needle')!.style.transform = `rotate(${p.lights[i]?.angle ?? 0}deg)`;
+  });
+  softnessRows.forEach((row, i) => {
+    row.hidden = i >= p.lights.length;
+    const marker = row.querySelector<HTMLElement>('.marker')!;
+    marker.hidden = p.lights.length === 1;
+    marker.textContent = String(i + 1);
+  });
+
+  const link = $<HTMLButtonElement>('link');
+  link.classList.toggle('on', p.linked);
+  link.setAttribute('aria-pressed', String(p.linked));
+  link.title = p.linked
+    ? "Linked: this shadow turns with every other linked shadow on the layer. They share their lights' directions; distance and softness stay each shadow's own. Click to give it lights of its own."
+    : 'Own lights. Click to link it: it turns like the other linked shadows.';
+  kind.querySelectorAll<HTMLElement>('[data-kind]').forEach((b) => b.classList.toggle('on', (b.dataset.kind === 'inner') === p.inner));
 
   for (const [key, { field, picker, swatch, hex }] of colorFields) {
     picker.value = p[key];
@@ -401,37 +847,18 @@ function render() {
     if (document.activeElement !== hex) hex.value = p[key].slice(1).toUpperCase();
     field.classList.toggle('off', key === 'endColor' && p.layers === 1);
   }
-  $('tone-note').textContent = toneNote(p);
+  const linkColors = $<HTMLButtonElement>('link-colors');
+  linkColors.classList.toggle('on', p.colorLinked);
+  linkColors.setAttribute('aria-pressed', String(p.colorLinked));
+  linkColors.title = p.colorLinked
+    ? 'Linked: one color from start to end; either field sets it. Click to give the far end a color of its own.'
+    : 'Start and end have their own colors. Click to link them: the end takes the start color.';
   blend.value = p.blendMode;
 
-  const blocked = selection.mergeBlocker && !p.merge ? selection.mergeBlocker : null;
-  merge.checked = p.merge;
-  merge.disabled = blocked !== null;
-  $('merge-note').textContent = blocked ?? '';
-
   renderList();
-  $('effects-note').textContent = effectsNote();
   renderPreview();
-
-  const { copies, opacity } = computeCopies(p);
-  const outer = copies[copies.length - 1];
-  $('readout').textContent = `${outer.x}, ${outer.y} · blur ${outer.blur}`;
-
-  const reach = p.elevation + p.distance;
-  const at = (offset: number) => `${reach > 0 ? (offset / reach) * 100 : 0}%`;
-  $('strip').innerHTML =
-    `<div class="gap" style="width:${at(p.elevation)}"></div>` +
-    copies.map((l) => `<div class="tick" style="left:${at(l.offset)}; background:${l.color}"></div>`).join('');
-
-  $('summary').textContent = p.merge
-    ? `${plural(copies.length, 'drop shadow')} on a layer at ${Math.round(opacity * 100)}%`
-    : `${plural(copies.length, 'drop shadow')} generated`;
-  $('layers').innerHTML = copies
-    .map(
-      (l, i) =>
-        `<tr><td><span class="dot" style="background:${l.color}"></span>${i + 1}</td><td>${l.x}</td><td>${l.y}</td><td>${l.blur}</td><td>${(l.alpha * 100).toFixed(1)}%</td></tr>`,
-    )
-    .join('');
+  renderLights(p);
+  renderCurves(p);
 
   renderFooter();
   fit();
@@ -452,21 +879,19 @@ function fit() {
     send({ type: 'resize', height });
   });
 }
-$('details').addEventListener('toggle', fit);
 
 function renderFooter() {
   const status = $('status');
   const primary = $<HTMLButtonElement>('primary');
   const more = $<HTMLButtonElement>('more');
   const unmanaged = selection.capable - selection.managed;
-  const anyMerged = shadows.some((s) => s.merge);
-  const layered = anyMerged || looseCopies(shadows) > MAX_EFFECTS;
+  const layered = dropCopies(shadows) > MAX_EFFECTS;
   let title: string;
   let hint = '';
 
   if (selection.managed) {
     title = `Editing ${plural(selection.managed, 'layer')}`;
-    hint = anyMerged ? 'Merged · changes apply live' : 'Changes apply live';
+    hint = 'Changes apply live';
     primary.textContent = 'Remove';
     primary.className = 'danger';
     primary.disabled = false;
@@ -481,7 +906,7 @@ function renderFooter() {
     const notes: string[] = [];
     if (selection.replaces) notes.push(`replaces ${plural(selection.replaces, 'drop shadow')}`);
     if (selection.styled) notes.push('detaches effect style');
-    if (layered && selection.capable && !selection.mergeBlocker) notes.push('groups it with a shadow layer');
+    if (layered && selection.capable && !selection.groupBlocker) notes.push('groups it with a shadow layer');
     hint = notes.length ? notes.join(', ').replace(/^./, (c) => c.toUpperCase()) : selection.capable ? '' : 'Then add a shadow to it';
     primary.textContent = shadows.length > 1 ? `Add ${shadows.length} shadows` : 'Add shadow';
     primary.className = 'primary';
@@ -499,6 +924,7 @@ window.addEventListener('message', (event: MessageEvent) => {
   if (!message) return;
   if (message.type === 'init') {
     if (message.last) shadows = message.last;
+    clipboard = message.clipboard ?? [];
   } else if (message.type === 'selection') {
     selection = message;
     if (message.shadows && !dragging) shadows = message.shadows;

@@ -1,14 +1,15 @@
 import type { PluginMessage, UiMessage } from './messages';
-import { clearShadows, lastWriteAt, mergeBlocker, readShadows, rematchSelection, selected, writeShadows } from './nodes';
-import { MAX_SHADOWS, fromStored, sanitize, sanitizeList, type ShadowParams } from './shadow';
+import { clearShadows, groupBlocker, lastWriteAt, readShadows, rematchSelection, selected, writeShadows } from './nodes';
+import { MAX_SHADOWS, applyPatch, fromStored, insertAt, sanitize, sanitizeList, type ShadowParams } from './shadow';
 
 const LAST_USED = 'last-used';
+const CLIPBOARD = 'clipboard';
 
 // The panel asks for the height its content needs, so it never has to scroll; past MAX_HEIGHT
 // (a long list, the open copy table) it scrolls after all.
 const WIDTH = 320;
 const MIN_HEIGHT = 240;
-const MAX_HEIGHT = 820;
+const MAX_HEIGHT = 880;
 figma.showUI(__html__, { width: WIDTH, height: 620, themeColors: true });
 
 function post(message: PluginMessage) {
@@ -47,7 +48,7 @@ function postSelection() {
       if (node.effectStyleId) styled++;
     }
   }
-  const blocked = nodes.map(mergeBlocker).find((reason) => reason !== null) ?? null;
+  const blocked = nodes.map(groupBlocker).find((reason) => reason !== null) ?? null;
   post({
     type: 'selection',
     total: figma.currentPage.selection.length,
@@ -56,7 +57,7 @@ function postSelection() {
     shadows,
     replaces,
     styled,
-    mergeBlocker: blocked,
+    groupBlocker: blocked,
   });
 }
 
@@ -97,7 +98,7 @@ function guard<T extends unknown[]>(run: (...args: T) => unknown) {
 figma.ui.onmessage = guard(async (msg: UiMessage) => {
   switch (msg.type) {
     case 'ready': {
-      post({ type: 'init', last: lastUsed(await figma.clientStorage.getAsync(LAST_USED)) });
+      post({ type: 'init', last: lastUsed(await figma.clientStorage.getAsync(LAST_USED)), clipboard: sanitizeList(await figma.clientStorage.getAsync(CLIPBOARD)) });
       if (rematchSelection()) figma.commitUndo();
       postSelection();
       break;
@@ -118,28 +119,40 @@ figma.ui.onmessage = guard(async (msg: UiMessage) => {
       postSelection();
       break;
     }
-    case 'update': {
-      // Patch, not replace: with several layers selected, only the touched setting changes.
-      const notes = edit((shadows) => {
-        if (msg.index >= shadows.length) return null;
-        return shadows.map((s, i) => (i === msg.index ? sanitize({ ...s, ...msg.patch }) : s));
-      }, msg.commit);
-      if (msg.commit) figma.commitUndo();
-      if (notes.size) {
-        report(notes, 0);
-        postSelection(); // a refused merge flips back; show it
+    case 'paste': {
+      // Like add, but onto shadowed layers too: their shadows are replaced.
+      const shadows = sanitizeList(msg.shadows);
+      if (!shadows.length) break;
+      const notes = new Set<string>();
+      let unstored = 0;
+      for (const node of selected()) {
+        const result = writeShadows(node, shadows, true);
+        if (!result.stored) unstored++;
+        if (result.note) notes.add(result.note);
       }
+      figma.commitUndo();
+      report(notes, unstored);
+      postSelection();
+      break;
+    }
+    case 'copy': {
+      const shadows = sanitizeList(msg.shadows);
+      await figma.clientStorage.setAsync(CLIPBOARD, shadows);
+      figma.notify(`Copied ${shadows.length === 1 ? '1 shadow' : `${shadows.length} shadows`}. Select layers and paste.`);
+      break;
+    }
+    case 'update': {
+      // Patch, not replace: with several layers selected, only the touched setting changes, and
+      // linked shadows on each layer turn with it.
+      const notes = edit((shadows) => (msg.index < shadows.length ? applyPatch(shadows, msg.index, msg.patch) : null), msg.commit);
+      if (msg.commit) figma.commitUndo();
+      if (notes.size) report(notes, 0);
       break;
     }
     case 'insert': {
       const params = sanitize(msg.params);
       report(
-        edit((shadows) => {
-          if (shadows.length >= MAX_SHADOWS) return null;
-          const next = [...shadows];
-          next.splice(Math.min(msg.index, next.length), 0, params);
-          return next;
-        }, true),
+        edit((shadows) => (shadows.length < MAX_SHADOWS ? insertAt(shadows, msg.index, params) : null), true),
         0,
       );
       figma.commitUndo();

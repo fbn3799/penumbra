@@ -7,11 +7,11 @@ export interface SelectionState {
   shadows: ShadowParams[] | null; // shadows of the first managed node, top first
   replaces: number; // drop shadows "Add" would replace on unmanaged nodes
   styled: number; // unmanaged nodes whose effect style "Add" would detach
-  mergeBlocker: string | null; // why the selection can't merge, if it can't
+  groupBlocker: string | null; // why the selection can't be grouped with a shadow layer, if it can't
 }
 
 export type PluginMessage =
-  | { type: 'init'; last: ShadowParams[] | null }
+  | { type: 'init'; last: ShadowParams[] | null; clipboard: ShadowParams[] }
   | ({ type: 'selection' } & SelectionState);
 
 // Shadows are addressed by their index in each layer's list, so with several layers selected
@@ -24,4 +24,6 @@ export type UiMessage =
   | { type: 'delete'; index: number }
   | { type: 'remove' }
   | { type: 'remember'; shadows: ShadowParams[] }
+  | { type: 'copy'; shadows: ShadowParams[] } // kept in client storage, so it reaches other files
+  | { type: 'paste'; shadows: ShadowParams[] } // onto every selected layer, replacing its shadows
   | { type: 'resize'; height: number };

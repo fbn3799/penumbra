@@ -17,12 +17,19 @@ Then, on a scratch file:
 
 - [ ] Select a rectangle, open Penumbra, **Add shadow**. The shadow appears and the panel shows its settings.
 - [ ] Drag Elevation, Distance and Softness sideways. The layer follows live; one ⌘Z undoes one drag.
-- [ ] Turn **Merge** on. The layer is grouped with a locked "Shadow" layer; turn it off and the group goes away.
-- [ ] Set Count to 12 with Merge off. A "More shadows" layer appears; back to 8 and it goes.
-- [ ] Add a second shadow with **+**, then remove it with **−**.
+- [ ] Set Count to 12. The layer is grouped with a locked "Shadows" layer holding all 12 copies, and the layer itself keeps none; back to 8 and the group goes.
+- [ ] Switch the Curve select through Distance, Blur, Opacity and Color and bend each, dragging the ends too: the copies move, soften, fade and change color live; double-click a handle to straighten a curve.
+- [ ] Set start and end Softness under Opacity: near copies get the start blur, the far end the end blur.
+- [ ] Unlink the colors (chain beside Color), give End its own color, link again: End takes Start's color.
+- [ ] Add a second shadow with **+**, hide it with its eye and show it again, then remove it with **−**.
+- [ ] **Copy** the shadows, select two other layers (one with a shadow of its own), **Paste**: both get the copied shadows; one ⌘Z undoes it. Paste also works in another file.
 - [ ] Deselect, close the plugin, select the layer again: the sidebar shows **Edit shadow**, and it reopens with the same settings.
-- [ ] Select a layer inside an instance and add a shadow. The panel says why it can't merge, Figma notes that the settings can't be stored there, and nothing errors.
-- [ ] The window fits its content without scrolling (one shadow ≈ 625 px tall).
+- [ ] Drag the light (the sun) on the preview, across the card too: the shadow turns away from it and grows as it moves away from the card's center, live on the layer; one ⌘Z undoes the drag.
+- [ ] Add a second shadow: it turns with the first (linked) and keeps its own distance; unlink it with the chain and it turns alone. Drag each light the same few pixels from the card's center, sideways and upwards: the distances read about the same.
+- [ ] Switch a shadow to **Inner**: it falls inside the layer. An inner shadow you added by hand stays when you edit or remove Penumbra's. Two inner shadows of 8 copies: both show, from a locked "Inner shadows" layer above the object; back to 8 copies in all and the group goes.
+- [ ] Select a layer inside an instance and give it 12 copies. A Figma notice says why it can't be grouped and that 4 copies are left out, another that the settings can't be stored there, and nothing errors.
+- [ ] The window fits its content without scrolling, also with two shadows (≈ 824 px).
+- [ ] Pull curve handles outside the light square, above, below and to the sides: the curve follows each handle's line. Hold Shift while dragging one: it lies flat or stands upright from its end.
 
 ## 2. Publish
 
@@ -37,7 +44,7 @@ Penumbra – Realistic, Layered Drop Shadows
 **Tagline**
 
 ```
-Smooth, soft and long shadows with real elevation and color fade, editable anytime.
+Smooth, soft, long and inner shadows with real elevation, light and color fade, editable anytime.
 ```
 
 **Description**
@@ -45,18 +52,19 @@ Smooth, soft and long shadows with real elevation and color fade, editable anyti
 ```
 Realistic drop shadows for Figma, built the way light makes them: a stack of soft copies that grows wider and fainter with distance. Smooth, soft, long or colored, on cards, buttons, icons and images. And every shadow stays editable. Select the layer again, or click "Edit shadow" in the sidebar, and every setting comes back.
 
-• Light: elevation (the gap before the shadow starts), distance, softness and direction.
-• Start and end: the color and opacity next to the object and at the far end. Penumbra solves each copy's alpha so the overlaps add up to what you set.
-• Copies: one for a single solid shadow, up to twelve for a smooth one, with exponential spacing.
+• Light: drag the light on the preview to aim the shadow and set its length. Each shadow has its own distance and softness; elevation, the gap before the shadow starts, belongs to the object. Link shadows so they all turn with one light.
+• Start and end: the color and opacity next to the object and at the far end, or one linked color throughout. Penumbra solves each copy's alpha so the overlaps add up to what you set.
+• Copies: one for a single solid shadow, up to 32 for a smooth one. Two curves shape them: where the copies sit, and how soft each gets.
 • Several shadows per layer: a tight contact shadow, a long key shadow and a soft ambient fill, each with its own settings.
-• Merge: draws a shadow on its own locked layer, grouped with the object, so it has one opacity, any blend mode and no visible overlaps. Works on photos and any shape.
-• Past Figma's limit: Figma keeps 8 drop shadows per layer. Penumbra puts the rest on a grouped layer instead of dropping them.
+• Inner shadows: the same light, copies and fade, cast inside the layer.
+• Past Figma's limit: Figma keeps 8 drop and 8 inner shadows per layer. Past that, Penumbra puts all the copies on grouped shadow layers instead of dropping them.
+• Hide a shadow without losing it, and copy a layer's shadows onto others, in any file.
 • Every number is a field: drag it sideways (Shift snaps), click to type, or use the arrow keys. Changes apply live, one undo step per drag.
 • Several layers at once: an edit changes only the setting you touched.
 
-Layers inside instances, variants and auto layout fill layers can't be grouped, so they keep their shadows as effects.
+Layers inside instances, variants and auto layout fill layers can't be grouped, so they keep Figma's limit of 8 copies.
 
-Penumbra only changes the layers you select. It has no network access; settings are stored on the layers, and your last shadow on your device.
+Penumbra only changes the layers you select. It has no network access; settings are stored on the layers, and your last and copied shadows on your device.
 
 Open source (MIT): https://github.com/fbn3799/penumbra
 ```
@@ -104,7 +112,7 @@ depth
 ```
 
 ```
-effects
+inner shadow
 ```
 
 ```
@@ -172,7 +180,7 @@ Only the selected layers' drop shadows, and the shadow layers it groups with the
 Community search ranks on the **name** first and reads the **tagline** too. Checked on 2026-10-29: every top plugin for "shadow" has the word in its name, and plugins with a few hundred users rank on the strength of their tagline alone ("Shadow Pro" is second for "realistic shadow" because its tagline says "realistic"). Plain "Penumbra" would match nothing, hence the name and tagline above:
 
 - the name carries **shadows**, **drop shadows**, **realistic** and **layered**;
-- the tagline carries **smooth**, **soft**, **long**, **elevation** and **color**;
+- the tagline carries **smooth**, **soft**, **long**, **inner**, **elevation**, **light** and **color**;
 - the description's first lines repeat them in sentences, and the tags cover the rest.
 
 `manifest.json` has the same name, so the publish form starts with it. Keep both if you rename. After publishing, search "shadow" filtered to Plugins and sorted by Recent to see it listed; relevance rank grows with users and likes.
@@ -181,7 +189,7 @@ Community search ranks on the **name** first and reads the **tagline** too. Chec
 
 - Check the listing's id (in its Community URL) matches `manifest.json`, so later releases update the same listing.
 - Add the Community link to the top of the README.
-- Tag the release: `git tag v0.3.0 && git push --tags`.
+- Tag the release: `git tag v0.4.0 && git push --tags`.
 
 Updates: bump `version` in `package.json`, `npm run build`, then **Manage plugins → Penumbra → Publish new version** with a line of version notes.
 
