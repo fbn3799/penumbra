@@ -2,6 +2,8 @@
 
 Figma only accepts submissions from the **desktop app**, from an account with two-factor authentication on (Fabian's account has it; Flow to Lottie and Copy Paste Overrides went out from it). Review takes a few days and the answer comes by email.
 
+**Where it stands (2026-10-31):** v0.3 is submitted (versions 1 and 2, both 2026-10-29) and still in review; its listing page is private until approved. v0.4 goes out as the next version of the same listing, with a new description, new images and the brand below. Version 2 went in the same way while the first was in review.
+
 ## 1. Run it once in Figma desktop
 
 Review rejects plugins that crash or show developer errors, and the panel has only run in a browser harness so far. So before publishing:
@@ -13,7 +15,7 @@ npm run build
 
 **Plugins → Development → Import plugin from manifest…** → `manifest.json`. The manifest carries the id Figma issued (`1697766878329271677`, since 2026-10-29), so the imported plugin and the published listing are the same.
 
-Then, on a scratch file:
+Already imported for v0.3? `npm run build` is enough; the development plugin picks up the new `dist/`. Then, on a scratch file:
 
 - [ ] Select a rectangle, open Penumbra, **Add shadow**. The shadow appears and the panel shows its settings.
 - [ ] Drag Elevation, Distance and Softness sideways. The layer follows live; one ⌘Z undoes one drag.
@@ -31,9 +33,9 @@ Then, on a scratch file:
 - [ ] The window fits its content without scrolling, also with two shadows (≈ 824 px).
 - [ ] Pull curve handles outside the light square, above, below and to the sides: the curve follows each handle's line. Hold Shift while dragging one: it lies flat or stands upright from its end.
 
-## 2. Publish
+## 2. Publish the new version
 
-Figma desktop → **Plugins → Manage plugins…** (or Development → Manage plugins in development) → Penumbra → **Publish**. Everything you paste has its own block below.
+Figma desktop → **Plugins → Manage plugins…** (or Development → Manage plugins in development) → Penumbra → **Publish new version**. The form holds the listing as it is; replace what changed for v0.4: the **description**, the **version notes**, **all six images** and two **data security** answers. Name, tagline, tags and support stay as they are. Everything you paste has its own block below.
 
 **Name**
 
@@ -54,7 +56,7 @@ Realistic drop shadows for Figma, built the way light makes them: a stack of sof
 
 • Light: drag the light on the preview to aim the shadow and set its length. Each shadow has its own distance and softness; elevation, the gap before the shadow starts, belongs to the object. Link shadows so they all turn with one light.
 • Start and end: the color and opacity next to the object and at the far end, or one linked color throughout. Penumbra solves each copy's alpha so the overlaps add up to what you set.
-• Copies: one for a single solid shadow, up to 32 for a smooth one. Two curves shape them: where the copies sit, and how soft each gets.
+• Copies: one for a single solid shadow, up to 32 for a smooth one. Four curves shape them: where the copies sit, how soft each gets, and how strength and color fade.
 • Several shadows per layer: a tight contact shadow, a long key shadow and a soft ambient fill, each with its own settings.
 • Inner shadows: the same light, copies and fade, cast inside the layer.
 • Past Figma's limit: Figma keeps 8 drop and 8 inner shadows per layer. Past that, Penumbra puts all the copies on grouped shadow layers instead of dropping them.
@@ -128,20 +130,20 @@ info@fabianschneider.net
 **Version notes**
 
 ```
-First release.
+Inner shadows, a light you drag on the preview, and curves for distance, blur, opacity and color. Link start and end colors, hide a shadow, copy and paste shadows across files, up to 32 copies. Past 8 drop or 8 inner copies, all of them go on grouped shadow layers. Merge is gone: merged shadows become plain shadows the next time you select the layer.
 ```
 
 **Images**, from `assets/`:
 
-- Icon: `icon.png` (128 × 128)
-- Thumbnail: `cover.png` (1920 × 1080)
-- Carousel, in this order: `carousel-1-panel.png`, `carousel-2-elevation.png`, `carousel-3-color.png`, `carousel-4-stack.png`
+- Icon: `icon.png` (128 × 128), new
+- Thumbnail: `cover.png` (1920 × 1080), new: the key visual
+- Carousel, in this order, all four new: `carousel-1-panel.png`, `carousel-2-elevation.png`, `carousel-3-color.png`, `carousel-4-stack.png`
 
 **Picked, not pasted:**
 
 | Field | Choose |
 |---|---|
-| Category | Design tools (closest subcategory on offer) |
+| Category | Design tools → Editing & effects (as set for v0.3) |
 | Publisher | Fabian Schneider |
 | Price | Free |
 | Comments | Allowed |
@@ -166,13 +168,13 @@ None. No accounts, analytics, tracking or third parties.
 **Data stored**
 
 ```
-Each shadow's settings in shared plugin data on its layer, inside the file. The last-used shadow in figma.clientStorage, on the user's device.
+Each shadow's settings in shared plugin data on its layer, inside the file. The last-used and the copied shadows in figma.clientStorage, on the user's device.
 ```
 
 **What it changes**
 
 ```
-Only the selected layers' drop shadows, and the shadow layers it groups with them.
+Only the selected layers' drop shadows and the inner shadows it wrote, and the shadow layers it groups with them.
 ```
 
 ### Being found for "shadow"
@@ -193,6 +195,19 @@ Community search ranks on the **name** first and reads the **tagline** too. Chec
 
 Updates: bump `version` in `package.json`, `npm run build`, then **Manage plugins → Penumbra → Publish new version** with a line of version notes.
 
-## The images
+## The brand and the images
 
-`assets/` holds the listing images. They're made in Figma with Penumbra's own code (`src/nodes.ts` run through the Figma MCP, like `npm run figma-check`), on the page "Community assets" of the scratch file "Penumbra plugin check (scratch)" in Fabian's drafts. The panel on the first carousel slide is the real `dist/ui.html`, rendered in headless Chrome and placed over the Figma render.
+The brand is the key visual, made in Figma with Penumbra itself: a `#00CCFF` sphere on white, with two shadows, both blended Plus darker.
+
+| Shadow | Copies | Color | Opacity | Light | Softness |
+|---|---|---|---|---|---|
+| Inner | 8 | `#2F0B93` → `#FF0095` | 73 → 0 % | 234°, 224 px | 0 → 84 px |
+| Drop | 12 | `#121C63` → `#7E25A7` | 80 → 0 % | 53°, 395 px | 13 → 97 px |
+
+At 384 px across; scale distance and softness with the size. Type: Instrument Serif for headlines, Inter for text, ink `#0E1033`.
+
+`assets/` holds the listing images:
+
+- `cover.png` is the key visual itself, exported from Fabian's file at 1920 × 1080.
+- `icon.png` is a crop of it (700 px square around the sphere), scaled to 128.
+- The carousel slides are made with Penumbra's own code (`src/nodes.ts` run through the Figma MCP, like `npm run figma-check`) on the page "Community assets" of the scratch file "Penumbra plugin check (scratch)" in Fabian's drafts, with the brand sphere's settings. The panel on the first slide is the real `dist/ui.html` showing that sphere's shadows, rendered in headless Chrome and placed over the Figma render.
