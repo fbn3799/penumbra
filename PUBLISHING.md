@@ -136,7 +136,7 @@ Inner shadows, a light you drag on the preview, and curves for distance, blur, o
 **Images**, from `assets/`:
 
 - Icon: `icon.png` (128 × 128), new
-- Thumbnail: `cover.png` (1920 × 1080), new: the key visual
+- Thumbnail: `cover.png` (1920 × 1080), new: the key visual's sphere with the title
 - Carousel, in this order, all four new: `carousel-1-panel.png`, `carousel-2-elevation.png`, `carousel-3-color.png`, `carousel-4-stack.png`
 
 **Picked, not pasted:**
@@ -208,6 +208,6 @@ At 384 px across; scale distance and softness with the size. Type: Instrument Se
 
 `assets/` holds the listing images:
 
-- `cover.png` is the key visual itself, exported from Fabian's file at 1920 × 1080.
-- `icon.png` is a crop of it (700 px square around the sphere), scaled to 128.
+- `cover.png` is the key visual's sphere, same shadows, beside the eyebrow ("FIGMA PLUGIN"), the title and the tagline (board "Cover" on the page below).
+- `icon.png` is a crop of Fabian's key visual frame (700 px square around the sphere), scaled to 128.
 - The carousel slides are made with Penumbra's own code (`src/nodes.ts` run through the Figma MCP, like `npm run figma-check`) on the page "Community assets" of the scratch file "Penumbra plugin check (scratch)" in Fabian's drafts, with the brand sphere's settings. The panel on the first slide is the real `dist/ui.html` showing that sphere's shadows, rendered in headless Chrome and placed over the Figma render.
